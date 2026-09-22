@@ -56,7 +56,7 @@ Pack it, then install the tarball:
 
 ```bash
 npm pack
-dsh plugin --profile web add ./0x427567-dsh-tavily-0.1.0.tgz
+dsh plugin --profile web add ./0x427567-dsh-tavily-<version>.tgz
 ```
 
 Do **not** point `dsh plugin add` at the checkout directory. pnpm installs a directory
