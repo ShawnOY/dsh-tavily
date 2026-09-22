@@ -27,11 +27,7 @@ Several Tavily providers for DSH exist. This one is built around a single idea:
 ### As a bundle (recommended)
 
 ```bash
-# from GitHub
 dsh plugin --profile web add github:ShawnOY/dsh-tavily-keyless
-
-# from a local checkout
-dsh plugin --profile web add /path/to/dsh-tavily-keyless
 ```
 
 The package declares `dsh.bundle.patch`, so `dsh plugin add` registers it in the
@@ -40,6 +36,24 @@ web seam's search at it. Nothing else to configure.
 
 Restart the harness afterwards: the base `hmr` row is disabled, so a newly added module
 is not hot-reloaded.
+
+### From a local checkout
+
+Pack it, then install the tarball:
+
+```bash
+npm pack
+dsh plugin --profile web add ./dsh-tavily-keyless-0.1.0.tgz
+```
+
+Do **not** point `dsh plugin add` at the checkout directory. pnpm installs a directory
+dependency as a symlink, and Node resolves a symlinked module to its real path — so a checkout
+outside the harness home resolves this package's `@deepseek-ai/*` imports against the checkout's
+own `node_modules`, not the harness's, and boot fails with
+`Cannot find package '@deepseek-ai/schemastery'`. A tarball extracts the package inside the
+profile, where the peers resolve correctly. `npm install` in a checkout is only for running the
+test suite; it pulls its *own* copies of the host packages, which is fine for the stubbed tests
+and wrong for loading into a harness.
 
 ### Manually, by relative path
 
