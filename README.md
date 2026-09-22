@@ -1,4 +1,4 @@
-# dsh-tavily-keyless
+# @0x427567/dsh-tavily
 
 A [Tavily](https://tavily.com)-backed search provider for the DeepSeek Harness web
 capability seam (`ctx.web`), shipped as a DSH **bundle** so `dsh plugin add` wires it
@@ -31,10 +31,11 @@ so an older harness fails the install rather than loading a plugin it cannot run
 ### From npm (recommended)
 
 ```bash
-dsh plugin --profile web add dsh-tavily-keyless
+dsh plugin --profile web add @0x427567/dsh-tavily
 ```
 
-Prebuilt, so nothing is compiled on your machine.
+Prebuilt, so nothing is compiled on your machine. The package is scoped because
+`dsh-tavily` and `dsh-web-tavily` are already taken on npm by other Tavily providers.
 
 ### From GitHub
 
@@ -55,7 +56,7 @@ Pack it, then install the tarball:
 
 ```bash
 npm pack
-dsh plugin --profile web add ./dsh-tavily-keyless-0.1.0.tgz
+dsh plugin --profile web add ./0x427567-dsh-tavily-0.1.0.tgz
 ```
 
 Do **not** point `dsh plugin add` at the checkout directory. pnpm installs a directory
@@ -122,7 +123,7 @@ refuses, this provider falls back to your key and tells you.
 
 `mode`, `keylessCooldownMinutes` and `language` are also editable at runtime from
 **Settings → Plugins → Plugin configuration**. This package ships a browser half that contributes the card for its
-`web-search-tavily-keyless` namespace — registering a namespace on the Host is not enough on its
+`dsh-tavily` namespace — registering a namespace on the Host is not enough on its
 own, because that page renders only the namespaces a card claims. A change there takes effect on
 the next search, and the profile patch remains the base value a reset returns to. The other keys
 are file-only.
@@ -249,7 +250,7 @@ language pack it adds — is checked without a browser. It does not render the c
 `client.js` is the browser half. It is a prebuilt bundle in the shape the client module system
 serves — a `window.__ModuleLoader__.load` factory receiving the host's `require` — so it is served
 as written and needs no build step. Its `dsh.client.platform` is `web`, and it is registered in the
-browser module graph as `dsh-tavily-keyless/client.js`.
+browser module graph as `@0x427567/dsh-tavily/client.js`.
 
 ## License
 

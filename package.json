@@ -1,5 +1,5 @@
 {
-  "name": "dsh-tavily-keyless",
+  "name": "@0x427567/dsh-tavily",
   "version": "0.1.0",
   "type": "module",
   "main": "index.js",

@@ -19,7 +19,7 @@
 
 - insert:
     - id: web-search-tavily
-      name: dsh-tavily-keyless
+      name: '@0x427567/dsh-tavily'
       config:
         apiKeyEnv: TAVILY_API_KEY
 

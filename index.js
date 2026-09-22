@@ -26,7 +26,7 @@
  * see the browser's own languages, so an unset or unshipped preference falls back
  * to {@link DEFAULT_NOTICE_LOCALE}.
  *
- * @module dsh-tavily-keyless
+ * @module @0x427567/dsh-tavily
  */
 import z from '@deepseek-ai/schemastery';
 import { credentialRef } from '@deepseek-ai/dsh-credentials';
@@ -55,7 +55,7 @@ const MODE_KEYLESS_ONLY = 'keyless-only';
 /** Require a key; never use the keyless tier. */
 const MODE_KEY_ONLY = 'key-only';
 /** Settings namespace this plugin registers its configuration under. */
-const SETTINGS_NAMESPACE = 'web-search-tavily-keyless';
+const SETTINGS_NAMESPACE = 'dsh-tavily';
 /** Minutes a refused keyless tier is skipped before it is tried again. */
 const DEFAULT_KEYLESS_COOLDOWN_MINUTES = 10;
 /** Attribution header sent on every request, matching the harness's own identity. */

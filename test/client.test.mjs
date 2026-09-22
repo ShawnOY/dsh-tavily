@@ -54,7 +54,7 @@ const require = (name) => {
 
 console.log('1. the bundle loads in the shape the client module system serves');
 check('the loader received an entry', entry !== undefined);
-check('the entry carries an id', entry?.id === 'dsh-tavily-keyless', `(got ${entry?.id})`);
+check('the entry carries an id', entry?.id === '@0x427567/dsh-tavily', `(got ${entry?.id})`);
 check('the entry carries a factory', typeof entry?.factory === 'function');
 
 const exports = entry.factory(require);
@@ -108,7 +108,7 @@ exports.apply(ctx);
 
 check('exactly one dictionary registration', dictionaries.length === 1, `(got ${dictionaries.length})`);
 const [namespace, dicts] = dictionaries[0];
-check('registered under the plugin namespace', namespace === 'web-search-tavily-keyless', `(got ${namespace})`);
+check('registered under the plugin namespace', namespace === 'dsh-tavily', `(got ${namespace})`);
 check('the card claims the same namespace', slots[0]?.[0]?.key === namespace && slots[0]?.[0]?.locale === namespace);
 check('the card registers into settings.plugin.item', slots[0]?.[0]?.name === 'settings.plugin.item', `(got ${slots[0]?.[0]?.name})`);
 check('the settings scope is bound to that namespace', bound?.namespace === namespace);

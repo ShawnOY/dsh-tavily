@@ -24,7 +24,7 @@
  * notices it writes into a transcript, so the two halves stay in one language.
  */
 window.__ModuleLoader__.load({
-	id: 'dsh-tavily-keyless',
+	id: '@0x427567/dsh-tavily',
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;
@@ -33,7 +33,7 @@ window.__ModuleLoader__.load({
 		const { jsx, jsxs } = require('react/jsx-runtime');
 
 		/** Must match the namespace the Node half registers. */
-		const NAMESPACE = 'web-search-tavily-keyless';
+		const NAMESPACE = 'dsh-tavily';
 		const MODES = ['keyless-first', 'key-first', 'keyless-only', 'key-only'];
 		/** `language` value that defers to the harness-wide preference. */
 		const LANGUAGE_AUTO = 'auto';
@@ -78,7 +78,7 @@ window.__ModuleLoader__.load({
 
 		/**
 		 * Build the card component bound to one settings scope.
-		 * @param scope - the bound `web-search-tavily-keyless` settings scope.
+		 * @param scope - the bound `dsh-tavily` settings scope.
 		 * @returns the React component the slot renders.
 		 */
 		function createCard(scope) {
@@ -354,9 +354,9 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'locale', 'settingsScope'];
 
 		function apply(ctx) {
-			ctx.effect(() => injectCss(), 'tavily-keyless card css');
-			ctx.effect(() => ctx.locale.register(NAMESPACE, { en, zh, 'zh-Hant': zhHant }), 'tavily-keyless locale');
-			ctx.effect(() => ctx.locale.addLanguage(TRADITIONAL_PACK), 'tavily-keyless language pack');
+			ctx.effect(() => injectCss(), 'dsh-tavily card css');
+			ctx.effect(() => ctx.locale.register(NAMESPACE, { en, zh, 'zh-Hant': zhHant }), 'dsh-tavily locale');
+			ctx.effect(() => ctx.locale.addLanguage(TRADITIONAL_PACK), 'dsh-tavily language pack');
 			const scope = ctx.settingsScope.bind({ namespace: NAMESPACE });
 			ctx.slots.inject('settings.plugin.item', () =>
 				ctx.slots.register(

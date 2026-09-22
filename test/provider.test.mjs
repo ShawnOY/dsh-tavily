@@ -183,7 +183,7 @@ reset();
 const settingsProvider = provider({ key: 'tvly-k', config: { mode: 'key-first' } });
 check('exactly one section registered', sections.length === 1, `(got ${sections.length})`);
 const [owner, namespace, schema, entry, hooks] = sections[0];
-check('namespace is the plugin namespace', namespace === 'web-search-tavily-keyless', `(got ${namespace})`);
+check('namespace is the plugin namespace', namespace === 'dsh-tavily', `(got ${namespace})`);
 check('the exported namespace matches', mod.SETTINGS_NAMESPACE === namespace);
 check('owner is the calling context', owner !== undefined);
 check('entry is the composition config', entry.mode === 'key-first');
