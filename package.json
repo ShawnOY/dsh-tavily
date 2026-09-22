@@ -1,7 +1,6 @@
 {
   "name": "dsh-tavily-keyless",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -20,6 +19,9 @@
   },
   "description": "Tavily-backed search provider for the DeepSeek Harness web seam (ctx.web): keyless-first credentials, a cooldown after the keyless tier refuses, and a user-visible notice when it falls back to the key.",
   "license": "MIT",
+  "engines": {
+    "node": "^22.19 || >=24"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShawnOY/dsh-tavily-keyless.git"
@@ -34,6 +36,7 @@
   "keywords": [
     "deepseek-harness",
     "dsh",
+    "dsh-plugin",
     "plugin",
     "web-search",
     "tavily",

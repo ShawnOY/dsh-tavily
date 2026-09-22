@@ -19,20 +19,32 @@ Several Tavily providers for DSH exist. This one is built around a single idea:
   the switch to your key is reported *in the search result itself* — and logged — rather
   than happening behind your back. Both follow your harness language.
 - **Explicit modes.** `keyless-first` (default), `key-first`, `keyless-only`, `key-only`.
-- **No build step.** Plain ESM. A git install runs no install script, so it needs no
-  `allowBuilds` permission.
+- **No build step.** Plain ESM, published as written. Installing it runs no install
+  script, so it needs no `allowBuilds` permission.
 
 ## Install
 
-### As a bundle (recommended)
+Requires Node `^22.19 || >=24`, and a harness that provides `@deepseek-ai/dsh-web` and
+`@deepseek-ai/dsh-credentials` at `^0.1.5-rc.2` — both are declared as peer dependencies,
+so an older harness fails the install rather than loading a plugin it cannot run.
+
+### From npm (recommended)
+
+```bash
+dsh plugin --profile web add dsh-tavily-keyless
+```
+
+Prebuilt, so nothing is compiled on your machine.
+
+### From GitHub
 
 ```bash
 dsh plugin --profile web add github:ShawnOY/dsh-tavily-keyless
 ```
 
-The package declares `dsh.bundle.patch`, so `dsh plugin add` registers it in the
-profile's `dsh.profile.bundles` and its shipped patch mounts the provider and points the
-web seam's search at it. Nothing else to configure.
+Either form installs the same package. It declares `dsh.bundle.patch`, so `dsh plugin add`
+registers it in the profile's `dsh.profile.bundles` and its shipped patch mounts the
+provider and points the web seam's search at it. Nothing else to configure.
 
 Restart the harness afterwards: the base `hmr` row is disabled, so a newly added module
 is not hot-reloaded.
