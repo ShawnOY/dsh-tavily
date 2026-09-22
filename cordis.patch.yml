@@ -1,0 +1,29 @@
+# Tavily-backed web search for the DeepSeek Harness web seam (ctx.web).
+#
+# This bundle contributes two rows: it mounts this package's search provider,
+# and it points the web seam's search at it.
+#
+# `name:` on the inserted row must match this package's package.json `name` —
+# renaming the package means updating that line too, or the row will not
+# resolve.
+#
+# A patch replaces the targeted row's WHOLE `config`, so the base `web` row is
+# restated in full: `fetchProvider` keeps the http provider the base already
+# selected. Pinning `searchProvider` is required rather than optional — both
+# registered providers report `available() === true` (each can only prove a
+# credential resolver exists, not that a key is set), so an unpinned seam would
+# fail every search with WEB_PROVIDER_AMBIGUOUS.
+#
+# A user's own cordis.patch.yml is applied after every bundle layer, so it can
+# still override either row — but it must restate the whole config to do so.
+
+- insert:
+    - id: web-search-tavily
+      name: dsh-tavily-keyless
+      config:
+        apiKeyEnv: TAVILY_API_KEY
+
+- id: web
+  config:
+    searchProvider: tavily
+    fetchProvider: http
