@@ -40,7 +40,7 @@ Prebuilt, so nothing is compiled on your machine. The package is scoped because
 ### From GitHub
 
 ```bash
-dsh plugin --profile web add github:ShawnOY/dsh-tavily-keyless
+dsh plugin --profile web add github:ShawnOY/dsh-tavily
 ```
 
 Either form installs the same package. It declares `dsh.bundle.patch`, so `dsh plugin add`

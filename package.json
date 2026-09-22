@@ -24,11 +24,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ShawnOY/dsh-tavily-keyless.git"
+    "url": "git+https://github.com/ShawnOY/dsh-tavily.git"
   },
-  "homepage": "https://github.com/ShawnOY/dsh-tavily-keyless#readme",
+  "homepage": "https://github.com/ShawnOY/dsh-tavily#readme",
   "bugs": {
-    "url": "https://github.com/ShawnOY/dsh-tavily-keyless/issues"
+    "url": "https://github.com/ShawnOY/dsh-tavily/issues"
   },
   "publishConfig": {
     "access": "public"
