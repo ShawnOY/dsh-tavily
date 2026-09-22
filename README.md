@@ -17,7 +17,7 @@ Several Tavily providers for DSH exist. This one is built around a single idea:
   works with no key stored. Your key is reached for only once the keyless tier refuses.
 - **A refusal is visible.** When the keyless tier refuses, that tier is cooled down and
   the switch to your key is reported *in the search result itself* — and logged — rather
-  than happening behind your back.
+  than happening behind your back. Both follow your harness language.
 - **Explicit modes.** `keyless-first` (default), `key-first`, `keyless-only`, `key-only`.
 - **No build step.** Plain ESM. A git install runs no install script, so it needs no
   `allowBuilds` permission.
@@ -134,17 +134,53 @@ The switch is announced in the search result, which the harness renders as the t
 output:
 
 ```
-⚠️ Tavily keyless 額度已用盡，這次改用 API key；接下來約 10 分鐘內直接使用 API key。
+⚠️ Tavily keyless 额度已用尽，这次改用 API key；接下来约 10 分钟内直接使用 API key。
 ```
 
 and, while the cooldown is active:
 
 ```
-⚠️ Tavily keyless 冷卻中（約剩 7 分鐘），這次使用 API key。
+⚠️ Tavily keyless 冷却中（约剩 7 分钟），这次使用 API key。
 ```
 
-Both also emit a `warn` to the harness log. The notices are Traditional Chinese because
-they are aimed at the operator; a happy path is silent.
+Both also emit a `warn` to the harness log. A happy path is silent. The wording above is
+the default (Simplified Chinese); see [Language](#language) for the other two.
+
+### Language
+
+The notice, the log warning, and this provider's own error messages follow the harness
+language preference — **Settings → General → Language** — so they match the language the
+settings card and the rest of the UI are already in. A language change applies to the
+next search.
+
+Three languages are served:
+
+| Preference | Language | Where it comes from |
+| --- | --- | --- |
+| `zh` *(default)* | Simplified Chinese | The harness's own `zh`, so it matches the shell |
+| `en` | English | The harness's own `en` |
+| `zh-Hant` | Traditional Chinese | A language pack this package adds |
+
+`zh` and `en` are built into the harness; `zh-Hant` arrives with this plugin's browser
+half, which calls `ctx.locale.addLanguage` for it. It falls back to `zh`, so a key missing
+from the pack resolves instead of rendering as a raw identifier.
+
+The pack is registered under the **script** tag and deliberately not a region tag such as
+`zh-TW`. That keeps the default where it belongs: a browser reporting `zh-TW` or `zh-HK`
+matches the `zh` primary subtag and opens in Simplified, and a Traditional reader opts in
+by picking 繁體中文 once. Registering `zh-TW` instead would exact-match those browsers and
+pull them off the default.
+
+Both halves resolve a given preference the same way — an exact id wins, then the primary
+subtag — so an unshipped `zh-TW` or `zh-HK` lands on Simplified `zh` in the card *and* in
+the notices rather than the two disagreeing.
+
+The one case where they can part ways is a browser that has never picked a language and
+reports `zh-Hant` itself. The client matches that exactly and opens in Traditional; the
+Host sees no stored preference at all, so its notices use the default, Simplified.
+Choosing a language in **Settings → General → Language** persists it and closes the gap.
+Nothing else can: the browser's language list never leaves the client, and the client
+deliberately does not write a browser-derived guess into the durable settings document.
 
 ## Why `searchProvider` must be pinned
 
@@ -168,13 +204,18 @@ override either row — but you must restate the whole config to do so.
   Set `mode: key-first` if you would rather always use your own account.
 - **The card covers `mode` and the cooldown only.** The remaining keys are set in the profile
   patch or the settings document, and there is no "test this key" button.
-- **Notices are Traditional Chinese.** Change the strings in `annotate()` for another
-  language.
+- **Traditional Chinese is a language pack, not a build of `zh`.** The harness reads bare
+  `zh` as Simplified, so 繁體 lives at `zh-Hant`. It shows up in the language list as an
+  extra entry rather than as a variant of 中文, and a Traditional reader has to pick it
+  once. No `zh-TW`/`zh-HK` entry is offered, so those browsers stay on the Simplified
+  default unless someone chooses otherwise.
 
 ## Development
 
 ```bash
-node test/provider.test.mjs                          # offline assertions
+npm test                                             # both offline suites
+node test/provider.test.mjs                          # the Host half only
+node test/client.test.mjs                            # the browser half only
 TAVILY_LIVE_TEST=1 node test/provider.test.mjs       # + a live keyless call
 TAVILY_LIVE_TEST=1 TAVILY_API_KEY=tvly-... node test/provider.test.mjs
 ```
@@ -182,6 +223,10 @@ TAVILY_LIVE_TEST=1 TAVILY_API_KEY=tvly-... node test/provider.test.mjs
 The offline assertions stub `fetch`; the live ones are opt-in. The plugin imports its
 `@deepseek-ai/*` peers as bare specifiers, so run the tests where those resolve — for
 example inside the profile that has the plugin installed.
+
+`test/client.test.mjs` stands up the `__ModuleLoader__` contract with a stub `require` and
+a stub context, so the browser half's wiring — the dictionaries it registers and the
+language pack it adds — is checked without a browser. It does not render the card.
 
 `client.js` is the browser half. It is a prebuilt bundle in the shape the client module system
 serves — a `window.__ModuleLoader__.load` factory receiving the host's `require` — so it is served

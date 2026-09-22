@@ -48,12 +48,18 @@ globalThis.fetch = async (url, init) => {
 let sections = [];
 
 /** Build a provider wired to a stub context. */
-function provider({ key, config = {} } = {}) {
+function provider({ key, config = {}, locale } = {}) {
 	const registered = [];
 	sections = [];
 	const ctx = {
 		web: { registerSearchProvider: (instance) => registered.push(instance) },
-		get: (name) => (name === 'credentials' && key !== undefined ? { resolve: async () => ({ value: key }) } : undefined),
+		get: (name) => {
+			if (name === 'credentials' && key !== undefined) return { resolve: async () => ({ value: key }) };
+			// The Host reads the harness locale preference from the settings
+			// document; absent service or namespace means "no preference".
+			if (name === 'settings') return { get: (ns) => (ns === 'locale' && locale !== undefined ? { preference: locale } : undefined) };
+			return undefined;
+		},
 		logger: { warn: (message) => logs.push(String(message)) },
 		inject: (names, callback) => {
 			if (names.includes('settings')) {
@@ -90,8 +96,8 @@ result = await cooling.search({ query: 'q' });
 check('two requests: keyless then key', seen.length === 2, `(got ${seen.length})`);
 check('the retry carried the key', seen[1].headers.authorization === 'Bearer tvly-k');
 check('the result still came back', result.sources.length === 2);
-check('notice reports the exhausted budget', typeof result.content === 'string' && result.content.includes('額度已用盡'), `(got ${JSON.stringify(result.content)})`);
-check('the operator was warned', logs.length === 1 && logs[0].includes('keyless tier refused'), `(logs=${JSON.stringify(logs)})`);
+check('notice reports the exhausted budget', typeof result.content === 'string' && result.content.includes('额度已用尽'), `(got ${JSON.stringify(result.content)})`);
+check('the operator was warned in the default language', logs.length === 1 && logs[0].includes('keyless 层拒绝了请求'), `(logs=${JSON.stringify(logs)})`);
 
 console.log('3. while cooling down: straight to the key, with a cooldown notice');
 reset();
@@ -99,7 +105,7 @@ queue = [() => new Response(okBody(), { status: 200 })];
 result = await cooling.search({ query: 'q' });
 check('one request only (keyless skipped)', seen.length === 1, `(got ${seen.length})`);
 check('used the key', seen[0].headers.authorization === 'Bearer tvly-k');
-check('notice reports the cooldown', typeof result.content === 'string' && result.content.includes('冷卻中'), `(got ${JSON.stringify(result.content)})`);
+check('notice reports the cooldown', typeof result.content === 'string' && result.content.includes('冷却中'), `(got ${JSON.stringify(result.content)})`);
 
 console.log('4. keylessCooldownMinutes:0 disables the cooldown');
 reset();
@@ -117,12 +123,22 @@ check('the refusal prose reached the log', logs.some((line) => line.includes('ke
 console.log('6. a non-refusal error does not silently fall back');
 reset();
 queue = [() => new Response(JSON.stringify({ detail: 'bad query' }), { status: 400 })];
+let surfaced;
 try {
 	await provider({ key: 'tvly-k' }).search({ query: 'q' });
-	check('400 surfaces as an error', false, '(no throw)');
 } catch (error) {
-	check('400 surfaces as an error', error.code === 'WEB_PROVIDER_ERROR' && seen.length === 1, `(code=${error.code}, requests=${seen.length})`);
+	surfaced = error;
 }
+check('400 surfaces as an error', surfaced?.code === 'WEB_PROVIDER_ERROR' && seen.length === 1, `(code=${surfaced?.code}, requests=${seen.length})`);
+check('the error message is in the default language', surfaced?.message.includes('搜索失败'), `(message=${surfaced?.message})`);
+reset();
+queue = [() => new Response(JSON.stringify({ detail: 'bad query' }), { status: 400 })];
+try {
+	await provider({ key: 'tvly-k', locale: 'en' }).search({ query: 'q' });
+} catch (error) {
+	surfaced = error;
+}
+check('and an `en` preference localizes it too', surfaced?.message.includes('Tavily search failed with HTTP 400'), `(message=${surfaced?.message})`);
 
 console.log('7. the other modes');
 reset();
@@ -139,7 +155,7 @@ try {
 	check('key-only without a key throws', false, '(no throw)');
 } catch (error) {
 	check('key-only without a key throws', error.code === 'WEB_PROVIDER_CREDENTIAL_MISSING', `(code=${error.code})`);
-}
+	check('the missing-key message is localized too', error.message.includes('需要 API key'), `(message=${error.message})`);}
 
 console.log('8. response mapping');
 reset();
@@ -192,10 +208,53 @@ check('an unknown mode is rejected', (() => {
 	}
 })());
 
+console.log('11. Host copy follows the harness locale preference');
+/** Run one refusal-to-key fallback under a preference and return the notice. */
+async function noticeFor(locale) {
+	reset();
+	queue = [refused429, () => new Response(okBody(), { status: 200 })];
+	const refused = await provider({ key: 'tvly-k', locale }).search({ query: 'q' });
+	return refused.content ?? '';
+}
+const defaultNotice = await noticeFor(undefined);
+check('no preference -> the default language (Simplified)', defaultNotice.includes('额度已用尽'), `(got ${JSON.stringify(defaultNotice)})`);
+check('an `en` preference -> English', (await noticeFor('en')).includes('quota is exhausted'));
+check('a regional tag resolves by its primary subtag', (await noticeFor('en-US')).includes('quota is exhausted'));
+check('an unshipped language falls back to the default', (await noticeFor('ja')).includes('额度已用尽'));
+check('a bare `zh` is Simplified, as the harness reads it', (await noticeFor('zh')).includes('额度已用尽'));
+check('`zh-Hant` is Traditional', (await noticeFor('zh-Hant')).includes('額度已用盡'));
+check('`zh-TW` falls to Simplified, as the client does', (await noticeFor('zh-TW')).includes('额度已用尽'));
+check('an unshipped `zh-*` tag falls to Simplified', (await noticeFor('zh-HK')).includes('额度已用尽'));
+reset();
+queue = [refused429, () => new Response(okBody(), { status: 200 })];
+await provider({ key: 'tvly-k', locale: 'en' }).search({ query: 'q' });
+check('the operator warning follows the same language', logs.length === 1 && logs[0].includes('keyless tier refused'), `(logs=${JSON.stringify(logs)})`);
+reset();
+queue = [refused429, () => new Response(okBody(), { status: 200 })];
+const traditionalCooling = provider({ key: 'tvly-k', locale: 'zh-Hant' });
+await traditionalCooling.search({ query: 'q' });
+check('the Traditional log line is Traditional', logs.length === 1 && logs[0].includes('keyless 層拒絕了請求'), `(logs=${JSON.stringify(logs)})`);
+reset();
+queue = [refused429, () => new Response(okBody(), { status: 200 })];
+const englishCooling = provider({ key: 'tvly-k', locale: 'en' });
+await englishCooling.search({ query: 'q' });
+reset();
+queue = [() => new Response(okBody(), { status: 200 })];
+result = await englishCooling.search({ query: 'q' });
+check('the English cooldown notice is in English', typeof result.content === 'string' && result.content.includes('cooling down'), `(got ${JSON.stringify(result.content)})`);
+const controller = new AbortController();
+controller.abort();
+try {
+	await provider({ key: 'tvly-k', locale: 'en' }).search({ query: 'q' }, controller.signal);
+	check('an aborted search reports in the preference language', false, '(no throw)');
+} catch (error) {
+	check('an aborted search reports in the preference language', error.code === 'WEB_ABORTED' && error.message.includes('aborted'), `(code=${error.code}, message=${error.message})`);
+}
+
 if (process.env.TAVILY_LIVE_TEST !== '1') {
-	console.log('\n11. live Tavily calls — skipped (set TAVILY_LIVE_TEST=1 to enable)');
+	console.log('\n12. live Tavily calls — skipped (set TAVILY_LIVE_TEST=1 to enable)');
 } else {
-	console.log('11. live Tavily calls');
+	console.log('12. live Tavily calls');
 	globalThis.fetch = realFetch;
 	const live = [['keyless (no credentials at all)', {}]];
 	if (envKey !== undefined) live.push(['keyless-first with a key present', { key: envKey }]);

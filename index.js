@@ -17,6 +17,15 @@
  * `mode` and the cooldown are also registered as a settings section, so they can
  * be changed from Settings → Plugins without editing the profile.
  *
+ * Everything this module writes into a transcript — the fallback notice, the
+ * cooldown warning, and its own error messages — is localized through
+ * {@link MESSAGES}, following the harness locale preference the browser half of
+ * `@deepseek-ai/dsh-client-locale` stores in the settings document. Simplified
+ * Chinese (`zh`) and English are the languages the harness itself ships;
+ * Traditional Chinese (`zh-Hant`) is a pack this package adds. The Host cannot
+ * see the browser's own languages, so an unset or unshipped preference falls back
+ * to {@link DEFAULT_NOTICE_LOCALE}.
+ *
  * @module dsh-tavily-keyless
  */
 import z from '@deepseek-ai/schemastery';
@@ -51,6 +60,68 @@ const SETTINGS_NAMESPACE = 'web-search-tavily-keyless';
 const DEFAULT_KEYLESS_COOLDOWN_MINUTES = 10;
 /** Attribution header sent on every request, matching the harness's own identity. */
 const USER_AGENT = 'deepseek-harness/0.0.1';
+/** Settings namespace owned by the harness locale plugin; read here, never written. */
+const LOCALE_SETTINGS_NAMESPACE = 'locale';
+/** Field in that namespace carrying the explicit language preference. */
+const LOCALE_PREFERENCE_FIELD = 'preference';
+/** Language the copy falls back to when no preference resolves. */
+const DEFAULT_NOTICE_LOCALE = 'zh';
+/** Languages this package writes its Host-side copy in. */
+const NOTICE_LOCALES = ['zh', 'zh-Hant', 'en'];
+
+/**
+ * Host-side copy, keyed by language.
+ *
+ * The search notice and the cooldown warning are the strings a user reads in the
+ * tool output; the diagnostics are translated too, so an error surfaced in the
+ * same transcript does not switch languages halfway through a session.
+ *
+ * `zh` is Simplified — the harness's own Chinese — and `zh-Hant` is Traditional,
+ * a separate pack rather than a variant of the same one. `en` is last because
+ * every other chain ends there.
+ *
+ * Entries are functions where a value is interpolated, so a translation can put
+ * the placeholder where its own grammar wants it instead of inheriting English
+ * word order.
+ */
+const MESSAGES = {
+	zh: {
+		aborted: () => 'Tavily 搜索已取消。',
+		requestFailed: (endpoint, error) => `Tavily 搜索请求 ${JSON.stringify(endpoint)} 失败：${String(error)}`,
+		httpFailed: (status, detail, endpoint) => `Tavily 搜索失败（HTTP ${status}）${detail === undefined ? '' : `：${detail}`}（端点 ${JSON.stringify(endpoint)}）`,
+		unprocessableBody: (error) => `Tavily 响应主体无法解析：${String(error)}`,
+		noResultSet: (detail) => `Tavily 没有返回结果集${detail}`,
+		missingApiKey: (apiKeyEnv, mode) => `Tavily 搜索在模式 "${mode}" 下需要 API key，但凭证 "${apiKeyEnv}" 没有解析到值；请写入 ~/.dsh/.credentials.yaml 的 refs、在启动 harness 的环境变量中提供，或在 web-search-tavily 设置里给字面值 "apiKey"`,
+		credentialFailed: (error) => `Tavily 搜索凭证解析失败：${String(error)}`,
+		cooldownLog: (reason, minutes) => `Tavily keyless 层拒绝了请求（${reason}）；接下来 ${minutes} 分钟改用 API key。`,
+		refusalNotice: (minutes) => `⚠️ Tavily keyless 额度已用尽，这次改用 API key；接下来约 ${minutes} 分钟内直接使用 API key。`,
+		cooldownNotice: (minutes) => `⚠️ Tavily keyless 冷却中（约剩 ${minutes} 分钟），这次使用 API key。`
+	},
+	'zh-Hant': {
+		aborted: () => 'Tavily 搜尋已取消。',
+		requestFailed: (endpoint, error) => `Tavily 搜尋請求 ${JSON.stringify(endpoint)} 失敗：${String(error)}`,
+		httpFailed: (status, detail, endpoint) => `Tavily 搜尋失敗（HTTP ${status}）${detail === undefined ? '' : `：${detail}`}（端點 ${JSON.stringify(endpoint)}）`,
+		unprocessableBody: (error) => `Tavily 回應主體無法解析：${String(error)}`,
+		noResultSet: (detail) => `Tavily 沒有回傳結果集${detail}`,
+		missingApiKey: (apiKeyEnv, mode) => `Tavily 搜尋在模式 "${mode}" 下需要 API key，但憑證 "${apiKeyEnv}" 沒有解析到值；請寫入 ~/.dsh/.credentials.yaml 的 refs、在啟動 harness 的環境變數中提供，或在 web-search-tavily 設定裡給字面值 "apiKey"`,
+		credentialFailed: (error) => `Tavily 搜尋憑證解析失敗：${String(error)}`,
+		cooldownLog: (reason, minutes) => `Tavily keyless 層拒絕了請求（${reason}）；接下來 ${minutes} 分鐘改用 API key。`,
+		refusalNotice: (minutes) => `⚠️ Tavily keyless 額度已用盡，這次改用 API key；接下來約 ${minutes} 分鐘內直接使用 API key。`,
+		cooldownNotice: (minutes) => `⚠️ Tavily keyless 冷卻中（約剩 ${minutes} 分鐘），這次使用 API key。`
+	},
+	en: {
+		aborted: () => 'Tavily search aborted.',
+		requestFailed: (endpoint, error) => `Tavily search request to ${JSON.stringify(endpoint)} failed: ${String(error)}`,
+		httpFailed: (status, detail, endpoint) => `Tavily search failed with HTTP ${status}${detail === undefined ? '' : `: ${detail}`} (endpoint ${JSON.stringify(endpoint)})`,
+		unprocessableBody: (error) => `Tavily returned an unprocessable response body: ${String(error)}`,
+		noResultSet: (detail) => `Tavily returned no result set${detail}`,
+		missingApiKey: (apiKeyEnv, mode) => `Tavily search has no API key for "${apiKeyEnv}" and mode "${mode}" requires one; add it to ~/.dsh/.credentials.yaml under refs, export it in the environment that launched the harness, or set a literal "apiKey" in the web-search-tavily config`,
+		credentialFailed: (error) => `Tavily search credential resolution failed: ${String(error)}`,
+		cooldownLog: (reason, minutes) => `Tavily keyless tier refused (${reason}); using the API key for the next ${minutes} minute(s).`,
+		refusalNotice: (minutes) => `⚠️ Tavily keyless quota is exhausted, so this search used the API key; the next ~${minutes} minute(s) go straight to the API key.`,
+		cooldownNotice: (minutes) => `⚠️ Tavily keyless is cooling down (~${minutes} minute(s) left); this search used the API key.`
+	}
+};
 
 const Config = z.object({
 	apiKey: z.string().role('secret'),
@@ -62,6 +133,54 @@ const Config = z.object({
 	mode: z.union([MODE_KEYLESS_FIRST, MODE_KEY_FIRST, MODE_KEYLESS_ONLY, MODE_KEY_ONLY]).default(MODE_KEYLESS_FIRST),
 	keylessCooldownMinutes: z.number().step(1).min(0).default(DEFAULT_KEYLESS_COOLDOWN_MINUTES)
 });
+
+/**
+ * Map a locale preference onto the copy table that serves it, mirroring the
+ * client's own lookup: an exact id wins, and the primary subtag is the last
+ * resort before {@link DEFAULT_NOTICE_LOCALE}.
+ *
+ * @param preference - the raw `locale.preference` value, if any.
+ * @returns a key of {@link MESSAGES}.
+ */
+function resolveNoticeLocale(preference) {
+	if (typeof preference !== 'string' || preference.length === 0) return DEFAULT_NOTICE_LOCALE;
+	const tag = preference.toLowerCase();
+	const exact = NOTICE_LOCALES.find((locale) => locale.toLowerCase() === tag);
+	if (exact !== undefined) return exact;
+	// `zh-Hant` and `zh` share the primary subtag `zh`, so an unshipped `zh-*`
+	// tag — `zh-TW`, `zh-HK`, a bare `zh-CN` — reaches the Simplified table,
+	// which is what the client does with the same tag.
+	const primary = tag.split('-')[0];
+	return NOTICE_LOCALES.find((locale) => locale.toLowerCase() === primary) ?? DEFAULT_NOTICE_LOCALE;
+}
+
+/**
+ * The language this Host's copy is written in: the harness locale preference
+ * when it names a language this package ships, and {@link DEFAULT_NOTICE_LOCALE}
+ * otherwise.
+ *
+ * That preference is the only locale signal a Host plugin can read — the
+ * browser's own languages never leave the client. It is read per search, so a
+ * language switch in Settings applies to the next one. An unknown tag (say
+ * `ja`, which the client does not ship either) falls back rather than failing.
+ *
+ * @param ctx - plugin context whose optional settings service owns the document.
+ * @returns a key of {@link MESSAGES}.
+ */
+function activeLocale(ctx) {
+	let preference;
+	try {
+		preference = ctx.get?.('settings')?.get?.(LOCALE_SETTINGS_NAMESPACE)?.[LOCALE_PREFERENCE_FIELD];
+	} catch {
+		return DEFAULT_NOTICE_LOCALE;
+	}
+	return resolveNoticeLocale(preference);
+}
+
+/** The copy table for one operation's snapshot. */
+function messages(options) {
+	return MESSAGES[options.locale] ?? MESSAGES[DEFAULT_NOTICE_LOCALE];
+}
 
 /** Project one resolved config section into the options one search uses. */
 function resolveOptions(ctx, config) {
@@ -82,6 +201,7 @@ function resolveOptions(ctx, config) {
 		includeAnswer: config.includeAnswer ?? false,
 		mode: config.mode ?? MODE_KEYLESS_FIRST,
 		keylessCooldownMinutes: config.keylessCooldownMinutes ?? DEFAULT_KEYLESS_COOLDOWN_MINUTES,
+		locale: activeLocale(ctx),
 		ctx
 	};
 }
@@ -121,8 +241,8 @@ function mapTavilyResponse(payload, maxResults) {
 }
 
 /** Build the seam's cancellation error. */
-function searchAborted(signal, cause) {
-	return new WebError('Tavily search aborted', 'WEB_ABORTED', cause === undefined ? undefined : { cause });
+function searchAborted(options, cause) {
+	return new WebError(messages(options).aborted(), 'WEB_ABORTED', cause === undefined ? undefined : { cause });
 }
 
 /** Whether a thrown value is a fetch cancellation. */
@@ -131,8 +251,8 @@ function isAbortError(error) {
 }
 
 /** Throw the seam's cancellation error when the caller already cancelled. */
-function throwIfSearchAborted(signal) {
-	if (signal?.aborted === true) throw searchAborted(signal);
+function throwIfSearchAborted(signal, options) {
+	if (signal?.aborted === true) throw searchAborted(options);
 }
 
 /**
@@ -140,12 +260,12 @@ function throwIfSearchAborted(signal) {
  * attached settlement handlers keep observing an uncooperative operation after
  * abort so a later rejection cannot become an unhandled.
  */
-function abortable(operation, signal) {
+function abortable(operation, signal, options) {
 	if (signal === undefined) return operation;
-	if (signal.aborted) return Promise.reject(searchAborted(signal));
+	if (signal.aborted) return Promise.reject(searchAborted(options));
 	return new Promise((resolve, reject) => {
 		const onAbort = () => {
-			reject(searchAborted(signal));
+			reject(searchAborted(options));
 		};
 		signal.addEventListener('abort', onAbort, { once: true });
 		operation.then(
@@ -183,7 +303,7 @@ function cooldownMinutes(ms) {
 
 /** The seam's error for a mode that requires a key when none resolved. */
 function missingApiKey(options) {
-	return new WebError(`Tavily search has no API key for "${options.apiKeyEnv ?? DEFAULT_API_KEY_ENV}" and mode "${options.mode}" requires one; add it to ~/.dsh/.credentials.yaml under refs, export it in the environment that launched the harness, or set a literal "apiKey" in the web-search-tavily config`, 'WEB_PROVIDER_CREDENTIAL_MISSING');
+	return new WebError(messages(options).missingApiKey(options.apiKeyEnv ?? DEFAULT_API_KEY_ENV, options.mode), 'WEB_PROVIDER_CREDENTIAL_MISSING');
 }
 
 /** Best-effort prose from a payload with no result set; a keyless cap explains itself. */
@@ -269,7 +389,7 @@ class TavilySearchProvider {
 	 * @returns the result, or a failure naming whether the tier refused the call.
 	 */
 	async attempt(options, request, signal, apiKey) {
-		throwIfSearchAborted(signal);
+		throwIfSearchAborted(signal, options);
 		const endpoint = endpointOf(options.baseURL);
 		const requested = Number.isInteger(request.maxResults) && request.maxResults > 0 ? request.maxResults : options.maxResults;
 		let response;
@@ -293,28 +413,28 @@ class TavilySearchProvider {
 				...(signal === undefined ? {} : { signal })
 			});
 		} catch (error) {
-			if (signal?.aborted === true || isAbortError(error)) throw searchAborted(signal, error);
-			throw new WebError(`Tavily search request to ${JSON.stringify(endpoint)} failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error });
+			if (signal?.aborted === true || isAbortError(error)) throw searchAborted(options, error);
+			throw new WebError(messages(options).requestFailed(endpoint, error), 'WEB_PROVIDER_ERROR', { cause: error });
 		}
 		if (!response.ok) {
 			const detail = await readFailureDetail(response);
 			return {
 				ok: false,
 				refused: response.status === 401 || response.status === 403 || response.status === 429,
-				error: new WebError(`Tavily search failed with HTTP ${response.status}${detail === undefined ? '' : `: ${detail}`} (endpoint ${JSON.stringify(endpoint)})`, 'WEB_PROVIDER_ERROR')
+				error: new WebError(messages(options).httpFailed(response.status, detail, endpoint), 'WEB_PROVIDER_ERROR')
 			};
 		}
 		let payload;
 		try {
 			payload = await response.json();
 		} catch (error) {
-			if (signal?.aborted === true || isAbortError(error)) throw searchAborted(signal, error);
-			throw new WebError(`Tavily returned an unprocessable response body: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error });
+			if (signal?.aborted === true || isAbortError(error)) throw searchAborted(options, error);
+			throw new WebError(messages(options).unprocessableBody(error), 'WEB_PROVIDER_ERROR', { cause: error });
 		}
 		// A capped keyless tier answers with prose instructions instead of a result
 		// set, so a body without `results` is a refusal too — not "no hits".
 		if (!Array.isArray(payload?.results)) {
-			return { ok: false, refused: true, error: new WebError(`Tavily returned no result set${describeRefusal(payload)}`, 'WEB_PROVIDER_ERROR') };
+			return { ok: false, refused: true, error: new WebError(messages(options).noResultSet(describeRefusal(payload)), 'WEB_PROVIDER_ERROR') };
 		}
 		return { ok: true, result: mapTavilyResponse(payload, requested) };
 	}
@@ -323,7 +443,7 @@ class TavilySearchProvider {
 	enterKeylessCooldown(options, error) {
 		const minutes = options.keylessCooldownMinutes;
 		this.keylessRefusedUntil = Date.now() + minutes * 60000;
-		options.ctx?.logger?.warn?.(`Tavily keyless tier refused (${String(error.message).slice(0, 300)}); using the API key for the next ${minutes} minute(s).`);
+		options.ctx?.logger?.warn?.(messages(options).cooldownLog(String(error.message).slice(0, 300), minutes));
 	}
 
 	/**
@@ -338,9 +458,8 @@ class TavilySearchProvider {
 	annotate(result, options, step) {
 		if (step.reason !== 'refusal' && step.reason !== 'cooldown') return result;
 		const minutes = cooldownMinutes(Math.max(0, this.keylessRefusedUntil - Date.now()));
-		const notice = step.reason === 'refusal'
-			? `⚠️ Tavily keyless 額度已用盡，這次改用 API key；接下來約 ${minutes} 分鐘內直接使用 API key。`
-			: `⚠️ Tavily keyless 冷卻中（約剩 ${minutes} 分鐘），這次使用 API key。`;
+		const copy = messages(options);
+		const notice = step.reason === 'refusal' ? copy.refusalNotice(minutes) : copy.cooldownNotice(minutes);
 		const content = result.content === undefined || result.content.length === 0 ? notice : `${notice}\n\n${result.content}`;
 		return { ...result, content };
 	}
@@ -353,14 +472,14 @@ class TavilySearchProvider {
 	 * @returns the resolved key, or `undefined` when the request should run keyless.
 	 */
 	async apiKey(options, signal) {
-		throwIfSearchAborted(signal);
+		throwIfSearchAborted(signal, options);
 		if (options.apiKey !== undefined && options.apiKey.length > 0) return options.apiKey;
 		let resolved;
 		try {
-			resolved = await abortable(options.resolveApiKey?.() ?? Promise.resolve(undefined), signal);
+			resolved = await abortable(options.resolveApiKey?.() ?? Promise.resolve(undefined), signal, options);
 		} catch (error) {
-			if (signal?.aborted === true || isAbortError(error)) throw searchAborted(signal, error);
-			throw new WebError(`Tavily search credential resolution failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error });
+			if (signal?.aborted === true || isAbortError(error)) throw searchAborted(options, error);
+			throw new WebError(messages(options).credentialFailed(error), 'WEB_PROVIDER_ERROR', { cause: error });
 		}
 		if (resolved !== undefined && resolved.length > 0) return resolved;
 		return undefined;

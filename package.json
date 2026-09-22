@@ -16,7 +16,7 @@
     "cordis.patch.yml"
   ],
   "scripts": {
-    "test": "node test/provider.test.mjs"
+    "test": "node test/provider.test.mjs && node test/client.test.mjs"
   },
   "description": "Tavily-backed search provider for the DeepSeek Harness web seam (ctx.web): keyless-first credentials, a cooldown after the keyless tier refuses, and a user-visible notice when it falls back to the key.",
   "license": "MIT",

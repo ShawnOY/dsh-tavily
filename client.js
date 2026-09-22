@@ -15,6 +15,13 @@
  * Edits go through `ctx.settingsScope.bind({ namespace })`, the same service the
  * shipped cards use, so a save lands in the settings document with the same
  * revision/recovery semantics as any built-in preference.
+ *
+ * The card is trilingual: `zh` (Simplified, the harness's own Chinese), `zh-Hant`
+ * (Traditional) and `en`. The two Chinese packs are separate catalog entries
+ * rather than one, because the harness treats bare `zh` as Simplified and a
+ * reader of either script should be able to say so in Settings → General →
+ * Language. The Host half reads that same preference back to localize the
+ * notices it writes into a transcript, so the two halves stay in one language.
  */
 window.__ModuleLoader__.load({
 	id: 'dsh-tavily-keyless',
@@ -233,7 +240,30 @@ window.__ModuleLoader__.load({
 			discard: 'Discard',
 			unavailable: 'This deployment does not serve this configuration.'
 		};
+		/**
+		 * Simplified Chinese. This is the harness's own `zh`, so the card matches the
+		 * shell around it rather than being the odd one out.
+		 */
 		const zh = {
+			title: 'Tavily 网页搜索（keyless 优先）',
+			description: '通过 Tavily 搜索。没有 API key 也能用；只有在 keyless 被拒时才会动用你的 key。',
+			mode: '凭证模式',
+			'mode.keyless-first': 'keyless 优先，被拒后改用 key',
+			'mode.key-first': 'key 优先',
+			'mode.keyless-only': '只用 keyless',
+			'mode.key-only': '只用 key',
+			modeHint: 'keyless 优先会先走 Tavily 免 key 层，被拒时才退回你的 key。',
+			cooldown: 'keyless 冷却（分钟）',
+			cooldownHint: 'keyless 被拒后跳过多久。设 0 等于关闭冷却。',
+			unsaved: '尚未保存',
+			saveFailed: '保存失败',
+			save: '保存',
+			saving: '保存中…',
+			discard: '放弃修改',
+			unavailable: '这个部署没有提供此设置。'
+		};
+		/** Traditional Chinese, offered as its own language pack rather than folded into `zh`. */
+		const zhHant = {
 			title: 'Tavily 網頁搜尋（keyless 優先）',
 			description: '透過 Tavily 搜尋。沒有 API key 也能用；只有在 keyless 被拒時才會動用你的 key。',
 			mode: '憑證模式',
@@ -252,12 +282,25 @@ window.__ModuleLoader__.load({
 			unavailable: '這個部署沒有提供此設定。'
 		};
 
+		/**
+		 * The language pack this card adds to the harness catalog. `zh` and `en` are
+		 * built in; this is ours.
+		 *
+		 * It is a pack rather than a variant of `zh` because the harness reads bare
+		 * `zh` as Simplified. Registering the script tag — and deliberately not a
+		 * region tag like `zh-TW` — keeps the default where it belongs: a browser
+		 * reporting `zh-TW` or `zh-HK` still matches the `zh` primary subtag and
+		 * opens in Simplified, and a Traditional reader opts in by picking 繁體中文.
+		 */
+		const TRADITIONAL_PACK = { id: 'zh-Hant', label: '繁體中文', fallback: 'zh' };
+
 		/** Client-side services this card needs before it can register. */
 		const inject = ['slots', 'locale', 'settingsScope'];
 
 		function apply(ctx) {
 			ctx.effect(() => injectCss(), 'tavily-keyless card css');
-			ctx.effect(() => ctx.locale.register(NAMESPACE, { en, zh }), 'tavily-keyless locale');
+			ctx.effect(() => ctx.locale.register(NAMESPACE, { en, zh, 'zh-Hant': zhHant }), 'tavily-keyless locale');
+			ctx.effect(() => ctx.locale.addLanguage(TRADITIONAL_PACK), 'tavily-keyless language pack');
 			const scope = ctx.settingsScope.bind({ namespace: NAMESPACE });
 			ctx.slots.inject('settings.plugin.item', () =>
 				ctx.slots.register(
