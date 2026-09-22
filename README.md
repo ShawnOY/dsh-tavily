@@ -106,9 +106,10 @@ refuses, this provider falls back to your key and tells you.
 | `includeAnswer` | `false` | Ask Tavily for an LLM-written answer as well. |
 | `mode` | `keyless-first` | Credential strategy — see below. |
 | `keylessCooldownMinutes` | `10` | How long a refused keyless tier is skipped. `0` disables the cooldown. |
+| `language` | `auto` | Copy language for this plugin alone. `auto` follows the harness preference — see [Language](#language). |
 
-`mode` and `keylessCooldownMinutes` are also editable at runtime from **Settings → Plugins →
-Plugin configuration**. This package ships a browser half that contributes the card for its
+`mode`, `keylessCooldownMinutes` and `language` are also editable at runtime from
+**Settings → Plugins → Plugin configuration**. This package ships a browser half that contributes the card for its
 `web-search-tavily-keyless` namespace — registering a namespace on the Host is not enough on its
 own, because that page renders only the namespaces a card claims. A change there takes effect on
 the next search, and the profile patch remains the base value a reset returns to. The other keys
@@ -152,6 +153,11 @@ The notice, the log warning, and this provider's own error messages follow the h
 language preference — **Settings → General → Language** — so they match the language the
 settings card and the rest of the UI are already in. A language change applies to the
 next search.
+
+**The card's own `language` field overrides that for this plugin alone.** Leave it on
+`auto` to follow the harness; pick a language to keep the rest of the UI where it is and
+have only this card and this plugin's notices speak it. Both halves read the same field,
+so the card and the transcript cannot disagree about which language they are in.
 
 Three languages are served:
 

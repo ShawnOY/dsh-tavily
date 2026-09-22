@@ -68,6 +68,10 @@ const LOCALE_PREFERENCE_FIELD = 'preference';
 const DEFAULT_NOTICE_LOCALE = 'zh';
 /** Languages this package writes its Host-side copy in. */
 const NOTICE_LOCALES = ['zh', 'zh-Hant', 'en'];
+/** `language` value that defers to the harness-wide preference. */
+const LANGUAGE_AUTO = 'auto';
+/** Values the per-plugin `language` field accepts. */
+const LANGUAGE_VALUES = [LANGUAGE_AUTO, ...NOTICE_LOCALES];
 
 /**
  * Host-side copy, keyed by language.
@@ -131,7 +135,8 @@ const Config = z.object({
 	maxResults: z.number().step(1).min(1).default(DEFAULT_MAX_RESULTS),
 	includeAnswer: z.boolean().default(false),
 	mode: z.union([MODE_KEYLESS_FIRST, MODE_KEY_FIRST, MODE_KEYLESS_ONLY, MODE_KEY_ONLY]).default(MODE_KEYLESS_FIRST),
-	keylessCooldownMinutes: z.number().step(1).min(0).default(DEFAULT_KEYLESS_COOLDOWN_MINUTES)
+	keylessCooldownMinutes: z.number().step(1).min(0).default(DEFAULT_KEYLESS_COOLDOWN_MINUTES),
+	language: z.union(LANGUAGE_VALUES).default(LANGUAGE_AUTO)
 });
 
 /**
@@ -155,9 +160,9 @@ function resolveNoticeLocale(preference) {
 }
 
 /**
- * The language this Host's copy is written in: the harness locale preference
- * when it names a language this package ships, and {@link DEFAULT_NOTICE_LOCALE}
- * otherwise.
+ * The language this Host's copy is written in: the per-plugin `language` field
+ * when it names one, otherwise the harness locale preference when it names a
+ * language this package ships, otherwise {@link DEFAULT_NOTICE_LOCALE}.
  *
  * That preference is the only locale signal a Host plugin can read — the
  * browser's own languages never leave the client. It is read per search, so a
@@ -165,9 +170,12 @@ function resolveNoticeLocale(preference) {
  * `ja`, which the client does not ship either) falls back rather than failing.
  *
  * @param ctx - plugin context whose optional settings service owns the document.
+ * @param choice - the per-plugin `language` value; `auto` defers to the harness.
  * @returns a key of {@link MESSAGES}.
  */
-function activeLocale(ctx) {
+function activeLocale(ctx, choice) {
+	// A per-plugin choice is deliberate, so it wins over the harness-wide one.
+	if (typeof choice === 'string' && choice !== LANGUAGE_AUTO) return resolveNoticeLocale(choice);
 	let preference;
 	try {
 		preference = ctx.get?.('settings')?.get?.(LOCALE_SETTINGS_NAMESPACE)?.[LOCALE_PREFERENCE_FIELD];
@@ -201,7 +209,7 @@ function resolveOptions(ctx, config) {
 		includeAnswer: config.includeAnswer ?? false,
 		mode: config.mode ?? MODE_KEYLESS_FIRST,
 		keylessCooldownMinutes: config.keylessCooldownMinutes ?? DEFAULT_KEYLESS_COOLDOWN_MINUTES,
-		locale: activeLocale(ctx),
+		locale: activeLocale(ctx, config.language),
 		ctx
 	};
 }

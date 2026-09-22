@@ -251,10 +251,44 @@ try {
 	check('an aborted search reports in the preference language', error.code === 'WEB_ABORTED' && error.message.includes('aborted'), `(code=${error.code}, message=${error.message})`);
 }
 
+console.log('12. a per-plugin `language` overrides the harness preference');
+/** One refusal-to-key fallback under a per-plugin choice and a preference. */
+async function noticeChoosing(language, locale) {
+	reset();
+	queue = [refused429, () => new Response(okBody(), { status: 200 })];
+	const refused = await provider({ key: 'tvly-k', locale, config: language === undefined ? {} : { language } }).search({ query: 'q' });
+	return refused.content ?? '';
+}
+check('an explicit choice beats a conflicting preference', (await noticeChoosing('zh-Hant', 'en')).includes('額度已用盡'));
+check('and the other way round', (await noticeChoosing('en', 'zh-Hant')).includes('quota is exhausted'));
+check('`auto` still follows the preference', (await noticeChoosing('auto', 'zh-Hant')).includes('額度已用盡'));
+check('an absent field behaves as `auto`', (await noticeChoosing(undefined, 'zh-Hant')).includes('額度已用盡'));
+check('an explicit choice needs no preference at all', (await noticeChoosing('en', undefined)).includes('quota is exhausted'));
+reset();
+queue = [refused429, () => new Response(okBody(), { status: 200 })];
+const chosenCooling = provider({ key: 'tvly-k', locale: 'en', config: { language: 'zh-Hant' } });
+await chosenCooling.search({ query: 'q' });
+check('the operator warning follows the choice too', logs.length === 1 && logs[0].includes('keyless 層拒絕了請求'), `(logs=${JSON.stringify(logs)})`);
+reset();
+queue = [() => new Response(okBody(), { status: 200 })];
+result = await chosenCooling.search({ query: 'q' });
+check('the cooldown notice follows the choice too', typeof result.content === 'string' && result.content.includes('冷卻中'), `(got ${JSON.stringify(result.content)})`);
+const languageDefaults = new mod.Config({ apiKeyEnv: 'TAVILY_API_KEY' });
+check('`language` defaults to auto', languageDefaults.language === 'auto', `(got ${languageDefaults.language})`);
+check('every documented language is accepted', ['auto', 'zh', 'zh-Hant', 'en'].every((value) => new mod.Config({ language: value }).language === value));
+check('an unknown language is rejected', (() => {
+	try {
+		new mod.Config({ language: 'ja' });
+		return false;
+	} catch {
+		return true;
+	}
+})());
+
 if (process.env.TAVILY_LIVE_TEST !== '1') {
-	console.log('\n12. live Tavily calls — skipped (set TAVILY_LIVE_TEST=1 to enable)');
+	console.log('\n13. live Tavily calls — skipped (set TAVILY_LIVE_TEST=1 to enable)');
 } else {
-	console.log('12. live Tavily calls');
+	console.log('13. live Tavily calls');
 	globalThis.fetch = realFetch;
 	const live = [['keyless (no credentials at all)', {}]];
 	if (envKey !== undefined) live.push(['keyless-first with a key present', { key: envKey }]);

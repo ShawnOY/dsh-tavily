@@ -35,6 +35,8 @@ window.__ModuleLoader__.load({
 		/** Must match the namespace the Node half registers. */
 		const NAMESPACE = 'web-search-tavily-keyless';
 		const MODES = ['keyless-first', 'key-first', 'keyless-only', 'key-only'];
+		/** `language` value that defers to the harness-wide preference. */
+		const LANGUAGE_AUTO = 'auto';
 
 		const CSS = [
 			'.tk_card{list-style:none;border:1px solid var(--dsw-alias-border-l2);border-radius:12px;background:var(--dsw-alias-bg-layer-3)}',
@@ -82,7 +84,6 @@ window.__ModuleLoader__.load({
 		function createCard(scope) {
 			return function TavilyKeylessCard(props) {
 				const { t } = props;
-				const copy = (key, fallback) => (t ? t(key) : fallback);
 				const [snapshot, setSnapshot] = react.useState(() => scope.getSnapshot());
 				const [edits, setEdits] = react.useState({});
 				const [open, setOpen] = react.useState(false);
@@ -90,6 +91,14 @@ window.__ModuleLoader__.load({
 				const [failed, setFailed] = react.useState(false);
 
 				react.useEffect(() => scope.subscribe(() => setSnapshot(scope.getSnapshot())), []);
+
+				// `auto` follows the harness-wide language through the shell's `t`; any
+				// other value renders this card — and the notices the Host writes — from
+				// the pack the reader picked, independently of the rest of the UI.
+				const chosen = snapshot.value !== undefined && typeof snapshot.value.language === 'string' ? snapshot.value.language : LANGUAGE_AUTO;
+				const dict = chosen === LANGUAGE_AUTO ? undefined : DICTS[chosen];
+				const copy =
+					dict === undefined ? (key, fallback) => (t ? t(key) : fallback) : (key, fallback) => (typeof dict[key] === 'string' ? dict[key] : fallback);
 
 				const title = jsx('span', { className: 'tk_name', children: copy('title', 'Tavily web search (keyless first)') });
 				if (snapshot.status !== 'ready') {
@@ -157,6 +166,26 @@ window.__ModuleLoader__.load({
 							? jsxs('div', {
 									className: 'tk_body',
 									children: [
+										jsxs('div', {
+											className: 'tk_field',
+											children: [
+												jsx('label', { className: 'tk_label', children: copy('language', 'Language') }),
+												jsx('select', {
+													className: 'tk_select',
+													value: chosen,
+													disabled: saving,
+													onChange: (event) => change('language', event.target.value),
+													children: LANGUAGE_OPTIONS.map((option) =>
+														jsx(
+															'option',
+															{ value: option.value, children: option.native === undefined ? copy('language.auto', 'Follow the harness language') : option.native },
+															option.value
+														)
+													)
+												}),
+												jsx('p', { className: 'tk_hint', children: copy('languageHint', 'Applies to this card and to the notices this plugin writes into the transcript.') })
+											]
+										}),
 										jsxs('div', {
 											className: 'tk_field',
 											children: [
@@ -233,6 +262,9 @@ window.__ModuleLoader__.load({
 			modeHint: 'keyless-first tries Tavily keyless and falls back to your key when that tier refuses.',
 			cooldown: 'Keyless cooldown (minutes)',
 			cooldownHint: 'How long a refused keyless tier is skipped. 0 disables the cooldown.',
+			language: 'Language',
+			'language.auto': 'Follow the harness language',
+			languageHint: 'Applies to this card and to the notices this plugin writes into the transcript.',
 			unsaved: 'Unsaved',
 			saveFailed: 'Save failed',
 			save: 'Save',
@@ -255,6 +287,9 @@ window.__ModuleLoader__.load({
 			modeHint: 'keyless 优先会先走 Tavily 免 key 层，被拒时才退回你的 key。',
 			cooldown: 'keyless 冷却（分钟）',
 			cooldownHint: 'keyless 被拒后跳过多久。设 0 等于关闭冷却。',
+			language: '语言',
+			'language.auto': '跟随 harness 语言',
+			languageHint: '适用于本卡片，以及本插件写入对话的提示。',
 			unsaved: '尚未保存',
 			saveFailed: '保存失败',
 			save: '保存',
@@ -274,6 +309,9 @@ window.__ModuleLoader__.load({
 			modeHint: 'keyless 優先會先走 Tavily 免 key 層，被拒時才退回你的 key。',
 			cooldown: 'keyless 冷卻（分鐘）',
 			cooldownHint: 'keyless 被拒後跳過多久。設 0 等於關閉冷卻。',
+			language: '語言',
+			'language.auto': '跟隨 harness 語言',
+			languageHint: '適用於本卡片，以及本外掛寫入對話的提示。',
 			unsaved: '尚未儲存',
 			saveFailed: '儲存失敗',
 			save: '儲存',
@@ -293,6 +331,24 @@ window.__ModuleLoader__.load({
 		 * opens in Simplified, and a Traditional reader opts in by picking 繁體中文.
 		 */
 		const TRADITIONAL_PACK = { id: 'zh-Hant', label: '繁體中文', fallback: 'zh' };
+
+		/**
+		 * The packs this card can render itself in, keyed by its own `language` field.
+		 * `auto` is deliberately absent: it means "ask the shell", which is the `t`
+		 * path rather than a table lookup.
+		 */
+		const DICTS = { en, zh, 'zh-Hant': zhHant };
+		/**
+		 * Options for the card's own language selector. Each language is named in
+		 * itself, so a reader can find their own without reading the current one;
+		 * `auto` borrows the active pack's wording instead.
+		 */
+		const LANGUAGE_OPTIONS = [
+			{ value: LANGUAGE_AUTO },
+			{ value: 'zh', native: '中文' },
+			{ value: 'zh-Hant', native: '繁體中文' },
+			{ value: 'en', native: 'English' }
+		];
 
 		/** Client-side services this card needs before it can register. */
 		const inject = ['slots', 'locale', 'settingsScope'];
