@@ -27,8 +27,8 @@ Several Tavily providers for DSH exist. This one is built around a single idea:
 ### As a bundle (recommended)
 
 ```bash
-# from a git remote
-dsh plugin --profile web add github:<you>/<repo>
+# from GitHub
+dsh plugin --profile web add github:ShawnOY/dsh-tavily-keyless
 
 # from a local checkout
 dsh plugin --profile web add /path/to/dsh-tavily-keyless

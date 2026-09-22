@@ -20,6 +20,14 @@
   },
   "description": "Tavily-backed search provider for the DeepSeek Harness web seam (ctx.web): keyless-first credentials, a cooldown after the keyless tier refuses, and a user-visible notice when it falls back to the key.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShawnOY/dsh-tavily-keyless.git"
+  },
+  "homepage": "https://github.com/ShawnOY/dsh-tavily-keyless#readme",
+  "bugs": {
+    "url": "https://github.com/ShawnOY/dsh-tavily-keyless/issues"
+  },
   "publishConfig": {
     "access": "public"
   },
