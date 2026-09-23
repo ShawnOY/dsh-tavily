@@ -125,11 +125,12 @@ refuses, this provider falls back to your key and tells you.
 | `searchDepth` | `basic` | Tavily `search_depth`. `advanced` costs more. |
 | `maxResults` | `5` | Result bound when the caller sets none. |
 | `includeAnswer` | `false` | Ask Tavily for an LLM-written answer as well. |
+| `provider` | `tavily` | Which backend answers `web_search`: `tavily` or `deepseek-official` — see [Switching providers](#switching-providers). |
 | `mode` | `keyless-first` | Credential strategy — see below. |
 | `keylessCooldownMinutes` | `10` | How long a refused keyless tier is skipped. `0` disables the cooldown. |
 | `language` | `auto` | Copy language for this plugin alone. `auto` follows the harness preference — see [Language](#language). |
 
-`mode`, `keylessCooldownMinutes` and `language` are also editable at runtime from
+`provider`, `mode`, `keylessCooldownMinutes` and `language` are also editable at runtime from
 **Settings → Plugins → Plugin configuration**. This package ships a browser half that contributes the card for its
 `dsh-tavily` namespace — registering a namespace on the Host is not enough on its
 own, because that page renders only the namespaces a card claims. A change there takes effect on
@@ -209,36 +210,58 @@ Choosing a language in **Settings → General → Language** persists it and clo
 Nothing else can: the browser's language list never leaves the client, and the client
 deliberately does not write a browser-derived guess into the durable settings document.
 
-## Why the shipped DeepSeek provider is switched off
+## Switching providers
+
+**Settings → Plugins → Plugin configuration → Tavily web search** carries a **Search
+provider** select:
+
+| Value | Backend | Cards on the page |
+| --- | --- | --- |
+| `tavily` *(default)* | This plugin, keyless-first | This one |
+| `deepseek-official` | The DeepSeek search provider `dsh-base` ships | This one, and that one |
+
+The choice applies to the next `web_search` — no restart — and it is stored in the settings
+document, so it survives one. The profile patch remains the value a reset returns to.
+
+The seam holds no pinned provider, so it resolves whichever provider is usable at call time.
+That is what makes the switch work, and it is also why a third search provider installed
+alongside these two would fail every search with `WEB_PROVIDER_AMBIGUOUS`: pin
+`searchProvider` on the `web` row yourself in that case.
+
+The switch is not atomic underneath. The setting commits before the shipped row is toggled,
+so a search issued in that instant can fail with `WEB_PROVIDER_UNAVAILABLE` or
+`WEB_PROVIDER_AMBIGUOUS`. It never silently answers from the backend you did not pick.
+
+## How the switch is wired
 
 `web_search` is not a search engine of its own: it is a model-facing tool that calls
-`ctx.web.search()`, and the seam resolves one registered provider by id. The base bundle
-registers the DeepSeek provider and points the seam at it, so a Tavily plugin that merely
-*added* a provider would leave two in the registry — two search backends, and two cards on
-the Plugins page. The shipped patch therefore also disables the `web-search-deepseek` row.
-A disabled row never loads, so it registers neither the provider nor its settings
-namespace, and **Settings → Plugins → Plugin configuration** shows this plugin's card
-alone. Set `disabled: false` on that row in your own patch layer if you want both.
+`ctx.web.search()`, and the seam resolves one registered provider. Three rows decide which:
 
-The patch also restates `fetchProvider: http`, because a patch replaces the targeted
-row's **whole** `config` and dropping it would leave the web fetch provider unset.
+- the `web` row carries **no** `searchProvider`, so the seam picks whichever provider is
+  usable at call time;
+- this plugin's provider is always registered, but `available()` is false unless it is the
+  selected backend **and** the shipped row is currently disabled;
+- the `web-search-deepseek` row is enabled exactly while the shipped provider is selected,
+  and the card toggles it at runtime through the loader.
 
-`searchProvider: tavily` is kept as well. With the shipped provider off it is not strictly
-required — the seam would find exactly one usable provider — but both providers report
-`available() === true`, because each can only prove a credential *resolver* exists, not
-that a key is set. The explicit pin holds the seam on Tavily if the shipped provider is
-switched back on later; an unpinned seam with two usable providers fails every search with
-`WEB_PROVIDER_AMBIGUOUS`.
+"Two usable" is therefore impossible: this provider being usable requires the shipped row to
+be off, and the shipped provider being usable requires it to be on. When a toggle fails —
+because a future harness renamed the row, say — the failure is a `warn` in the harness log,
+and a built-in selection then fails loudly with `WEB_PROVIDER_UNAVAILABLE` rather than
+silently answering from the wrong backend.
 
-Your own `cordis.patch.yml` is applied after every bundle layer, so you can still
-override any of these rows — but you must restate the whole config to do so.
+The patch also restates `fetchProvider: http`, because a patch replaces the targeted row's
+**whole** `config` and dropping it would leave the web fetch provider unset.
+
+Your own `cordis.patch.yml` is applied after every bundle layer, so you can still override
+any of these rows — but you must restate the whole config to do so, and the runtime setting
+wins over a row's composed `disabled` on the next change.
 
 ## Caveats
 
-- **Installing this plugin switches off the shipped DeepSeek search provider.** That is what
-  makes Tavily the profile's one search provider rather than a second one, and it is why the
-  shipped "Web search" card disappears. Re-enable `web-search-deepseek` in your own patch
-  layer if you would rather keep both.
+- **The shipped DeepSeek search provider starts switched off.** The default selection is
+  Tavily, so **Settings → Plugins** shows this plugin's card alone. Pick
+  `deepseek-official` in the card and that provider's own card comes back next to this one.
 - **Keyless has no account and no contract.** You accept no terms and hold the least
   leverage over what happens to your data. It is the right default for trying a tool and
   the wrong channel for anything sensitive — see

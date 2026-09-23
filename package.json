@@ -1,6 +1,6 @@
 {
   "name": "@0x427567/dsh-tavily",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "type": "module",
   "main": "index.js",
   "exports": {
