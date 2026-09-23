@@ -329,6 +329,120 @@ git commit -m "feat: switch search backends through the loader"
 
 ---
 
+### Task 2b: Serialize the row toggles
+
+Added during review of Task 2. The settings provider delivers watcher callbacks one at a
+time and awaits the callback's return value, but `installSection` calls `hooks.onChange()`
+without returning it, so a `void`-ed toggle is not covered by that serialization. Two
+settings commits close together can therefore land their `loader.update()` calls out of
+order, leaving the row enabled while the setting says `tavily` — the seam then resolves the
+shipped provider while the card shows Tavily, which is the one outcome the invariant exists
+to prevent. Without this task the failure is silent, so the fix is a serialized chain rather
+than a warning.
+
+**Files:**
+- Modify: `index.js:589-603` (`apply`)
+- Test: `test/provider.test.mjs` — the `stubLoader` helper and the end of section 13
+
+**Interfaces:**
+- Consumes: `syncBuiltinRow(ctx, provider)` from Task 2.
+- Produces: `apply` owns a `syncRow()` that chains toggles in call order; `stubLoader` accepts a `delayMs(options)` hook.
+
+- [ ] **Step 1: Write the failing test**
+
+In `test/provider.test.mjs`, add the `delayMs` hook to `stubLoader`:
+
+```js
+function stubLoader({ rows = [{ id: 'web-search-deepseek', disabled: true }], failUpdate = false, delayMs = () => 0 } = {}) {
+	const state = rows.map((row) => ({ ...row }));
+	return {
+		state,
+		entries: () => state,
+		update: async (id, options) => {
+			const wait = delayMs(options);
+			if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+			if (failUpdate) throw new Error('loader refused the update');
+			const row = state.find((candidate) => candidate.id === id);
+			if (row === undefined) throw new Error(`no row ${id}`);
+			Object.assign(row, options);
+		}
+	};
+}
+```
+
+Then append this to the end of section 13, after the no-loader check:
+
+```js
+reset();
+// Enabling is slow and disabling is instant, so without a serialized chain the
+// slow enable lands last and leaves the row on while the setting says Tavily.
+const raceLoader = stubLoader({ rows: [{ id: 'web-search-deepseek', disabled: true }], delayMs: (options) => (options.disabled ? 0 : 25) });
+provider({ key: 'tvly-k', loader: raceLoader });
+await settle();
+const raceHooks = sections[0][4];
+raceHooks.setSource(() => ({ provider: 'deepseek-official' }));
+raceHooks.onChange();
+raceHooks.setSource(() => ({ provider: 'tavily' }));
+raceHooks.onChange();
+await new Promise((resolve) => setTimeout(resolve, 60));
+check('the last setting wins when two toggles overlap', raceLoader.state[0].disabled === true, `(got ${raceLoader.state[0].disabled})`);
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `node test/provider.test.mjs`
+Expected: FAIL on `the last setting wins when two toggles overlap` — `(got false)`. The slow enable finishes last and re-enables the row.
+
+- [ ] **Step 3: Chain the toggles**
+
+Replace the body of `apply` in `index.js` with:
+
+```js
+function apply(ctx, config) {
+	let current = () => config;
+	// Settings changes arrive one after another, but a row toggle is async and
+	// the settings provider does not await `onChange`. Chaining them keeps an
+	// earlier toggle from landing after a later one, which would leave the row
+	// disagreeing with the setting — the one state the availability rule above
+	// cannot tolerate.
+	let toggles = Promise.resolve();
+	const syncRow = () => {
+		const run = () => syncBuiltinRow(ctx, current().provider ?? TAVILY_PROVIDER_ID);
+		toggles = toggles.then(run, run);
+		return toggles;
+	};
+	ctx.inject(['settings'], (settingsCtx) => {
+		settingsCtx.settings.installSection(ctx, SETTINGS_NAMESPACE, Config, config, {
+			setSource: (source) => {
+				current = source;
+			},
+			// Also fires at attach, so boot applies the persisted choice.
+			onChange: syncRow
+		});
+	});
+	ctx.web.registerSearchProvider(new TavilySearchProvider(() => resolveOptions(ctx, current())));
+	// Covers a composition with no settings service, where `onChange` never fires.
+	void syncRow();
+}
+```
+
+`run` reads `current()` when it executes, not when it is queued, so the last setting in is
+the last one applied.
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run: `node test/provider.test.mjs`
+Expected: PASS on the overlap check, and every earlier check still passes. Total: 69 + 1 = 70 passed, 0 failed.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add index.js test/provider.test.mjs
+git commit -m "fix: serialize the search backend row toggles"
+```
+
+---
+
 ### Task 3: Drop the seam pin so the switch takes effect
 
 **Files:**
@@ -398,7 +512,7 @@ In `cordis.patch.yml`, replace the two paragraphs that explain the pin — the o
 - [ ] **Step 5: Run the test to verify it passes**
 
 Run: `node test/provider.test.mjs`
-Expected: PASS on all three section-14 checks. Total: 72 passed, 0 failed.
+Expected: PASS on all three section-14 checks. Total: 73 passed, 0 failed.
 
 - [ ] **Step 6: Commit**
 
@@ -635,7 +749,7 @@ In `package.json`, change `"version": "0.1.2"` to `"version": "0.2.0"`.
 - [ ] **Step 7: Run the full suite**
 
 Run: `npm test`
-Expected: `72 passed, 0 failed` then `38 passed, 0 failed`.
+Expected: `73 passed, 0 failed` then `38 passed, 0 failed`.
 
 - [ ] **Step 8: Commit**
 
@@ -697,4 +811,4 @@ copy block is written out.
 `findBuiltinRow` and `syncBuiltinRow`; `options.provider` is produced in Task 1 and consumed
 in Task 2; the card's `provider` field name and the two option values match `PROVIDER_VALUES`
 in Task 1 and the dictionary keys in Task 4. Test counts quoted per task: Task 1 ends at 60,
-Task 2 at 69, Task 3 at 72; the client suite ends at 38.
+Task 2 at 69, Task 2b at 70, Task 3 at 73; the client suite ends at 38.
