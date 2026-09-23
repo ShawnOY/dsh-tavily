@@ -171,5 +171,27 @@ check('`zh` renders Simplified', titleFor('zh') === 'Tavily 网页搜索（免�
 check('`zh-Hant` renders Traditional', titleFor('zh-Hant') === 'Tavily 網頁搜尋（免金鑰優先）', `(got ${titleFor('zh-Hant')})`);
 check('`en` renders English', titleFor('en') === 'Tavily web search (keyless first)', `(got ${titleFor('en')})`);
 
+console.log('7. the provider selector');
+check('en names the field', dicts.en.provider === 'Search provider', `(got ${dicts.en.provider})`);
+check('zh names the field', typeof dicts.zh.provider === 'string' && dicts.zh.provider.length > 0);
+check('zh-Hant names the field', typeof dicts['zh-Hant'].provider === 'string' && dicts['zh-Hant'].provider.length > 0);
+check(
+	'every backend has copy in every language',
+	['tavily', 'deepseek-official'].every((id) => ['en', 'zh', 'zh-Hant'].every((locale) => typeof dicts[locale]['provider.' + id] === 'string'))
+);
+// The card renders its body only while `open`, and the stub answers `true` for
+// boolean state, so this is the one render that reaches the fields.
+const realUseState = react.useState;
+react.useState = (initial) => [typeof initial === 'boolean' ? true : typeof initial === 'function' ? initial() : initial, () => {}];
+const rendered = Card({ t: (key) => `shell:${key}` });
+react.useState = realUseState;
+const selects = nodesWithClass(rendered, 'tk_select');
+const providerSelect = selects.find((node) => (node.props.children ?? []).some((option) => option?.props?.value === 'deepseek-official'));
+check('the card renders a provider select', providerSelect !== undefined, `(got ${selects.length} selects)`);
+check(
+	'with exactly the two seam provider ids',
+	JSON.stringify((providerSelect?.props.children ?? []).map((option) => option.props.value)) === JSON.stringify(['tavily', 'deepseek-official'])
+);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

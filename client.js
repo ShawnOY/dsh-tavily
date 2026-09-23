@@ -35,6 +35,7 @@ window.__ModuleLoader__.load({
 		/** Must match the namespace the Node half registers. */
 		const NAMESPACE = 'dsh-tavily';
 		const MODES = ['keyless-first', 'key-first', 'keyless-only', 'key-only'];
+		const PROVIDERS = ['tavily', 'deepseek-official'];
 		/** `language` value that defers to the harness-wide preference. */
 		const LANGUAGE_AUTO = 'auto';
 
@@ -169,6 +170,20 @@ window.__ModuleLoader__.load({
 										jsxs('div', {
 											className: 'tk_field',
 											children: [
+												jsx('label', { className: 'tk_label', children: copy('provider', 'Search provider') }),
+												jsx('select', {
+													className: 'tk_select',
+													value: typeof value.provider === 'string' ? value.provider : PROVIDERS[0],
+													disabled: saving,
+													onChange: (event) => change('provider', event.target.value),
+													children: PROVIDERS.map((provider) => jsx('option', { value: provider, children: copy('provider.' + provider, provider) }, provider))
+												}),
+												jsx('p', { className: 'tk_hint', children: copy('providerHint', 'Which backend answers web_search. Choosing the built-in one brings back its own Web search card.') })
+											]
+										}),
+										jsxs('div', {
+											className: 'tk_field',
+											children: [
 												jsx('label', { className: 'tk_label', children: copy('language', 'Language') }),
 												jsx('select', {
 													className: 'tk_select',
@@ -254,6 +269,10 @@ window.__ModuleLoader__.load({
 		const en = {
 			title: 'Tavily web search (keyless first)',
 			description: 'Search the web through Tavily. Works with no API key — your key is used only when the keyless tier refuses.',
+			provider: 'Search provider',
+			'provider.tavily': 'Tavily (this plugin)',
+			'provider.deepseek-official': 'DSH built-in (DeepSeek)',
+			providerHint: 'Which backend answers web_search. Choosing the built-in one brings back its own Web search card.',
 			mode: 'Credential mode',
 			'mode.keyless-first': 'Keyless first, key as fallback',
 			'mode.key-first': 'Key first',
@@ -279,6 +298,10 @@ window.__ModuleLoader__.load({
 		const zh = {
 			title: 'Tavily 网页搜索（免密钥优先）',
 			description: '通过 Tavily 搜索网页。没有密钥也能用；只有在免密钥服务拒绝请求时，才会改用你的密钥。',
+			provider: '搜索服务',
+			'provider.tavily': 'Tavily（本插件）',
+			'provider.deepseek-official': 'DSH 内置（DeepSeek）',
+			providerHint: '由哪个后端处理 web_search。选择内置服务时，它自己的「网页搜索」卡片会重新出现。',
 			mode: '凭证模式',
 			'mode.keyless-first': '免密钥优先，被拒时改用密钥',
 			'mode.key-first': '优先使用密钥',
@@ -301,6 +324,10 @@ window.__ModuleLoader__.load({
 		const zhHant = {
 			title: 'Tavily 網頁搜尋（免金鑰優先）',
 			description: '透過 Tavily 搜尋網頁。沒有金鑰也能用；只有在免金鑰服務拒絕請求時，才會改用你的金鑰。',
+			provider: '搜尋服務',
+			'provider.tavily': 'Tavily（本外掛）',
+			'provider.deepseek-official': 'DSH 內建（DeepSeek）',
+			providerHint: '由哪個後端處理 web_search。選擇內建服務時，它自己的「網頁搜尋」卡片會重新出現。',
 			mode: '憑證模式',
 			'mode.keyless-first': '免金鑰優先，被拒時改用金鑰',
 			'mode.key-first': '優先使用金鑰',
