@@ -19,6 +19,11 @@ This revision adopts that mechanism (design C) while keeping the one property A 
 for — a single search card. The loader helpers, the availability rule, the serialized toggle
 chain and the transition window all disappear with it.
 
+A later fix dropped the credential half of `available()` (see "index.js — `available()`"
+below): with a well-formed `apiKeyEnv` that test was vacuously true, and keeping it made a
+malformed `apiKeyEnv` report the whole provider unusable instead of a coded search error.
+`Config` now rejects a ref outside the credentials grammar at load time.
+
 ## Problem
 
 `web_search` is a model-facing tool (`@deepseek-ai/dsh-tool-web`) that calls
@@ -112,9 +117,10 @@ version and token/use bounds from the shipped defaults, with
 it runs the existing Tavily path. The seam still applies `maxResults` to whatever comes back.
 
 **`index.js` — `available()`** is unchanged from before design A: a resolvable credential and
-a parseable base URL. It must not depend on `provider`, because the seam is pinned to this
-provider and would otherwise fail with `WEB_PROVIDER_CONFIGURED_UNAVAILABLE` whenever the
-other backend is selected.
+a parseable base URL. *Superseded: the credential half was dropped later — see the revision
+note — so it is now only the parseable base URL.* It must not depend on `provider`, because
+the seam is pinned to this provider and would otherwise fail with
+`WEB_PROVIDER_CONFIGURED_UNAVAILABLE` whenever the other backend is selected.
 
 **`client.js` — the card** keeps the `provider` select added for design A, unchanged.
 

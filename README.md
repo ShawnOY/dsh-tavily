@@ -122,7 +122,7 @@ refuses, this provider falls back to your key and tells you.
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `apiKey` | — | Literal key. Prefer the credential store. |
-| `apiKeyEnv` | `TAVILY_API_KEY` | Credential ref resolved per search. |
+| `apiKeyEnv` | `TAVILY_API_KEY` | Credential ref resolved per search. Must be a shell-style name (`[A-Za-z_][A-Za-z0-9_]*`); anything else is rejected when the config loads. |
 | `baseURL` | `https://api.tavily.com` | API base; `/search` is appended. |
 | `searchDepth` | `basic` | Tavily `search_depth`. `advanced` costs more. |
 | `maxResults` | `5` | Result bound when the caller sets none. |
@@ -159,13 +159,13 @@ The switch is announced in the search result, which the harness renders as the t
 output:
 
 ```
-⚠️ Tavily keyless 额度已用尽，这次改用 API key；接下来约 10 分钟内直接使用 API key。
+⚠️ Tavily 免密钥额度已用尽，这次改用密钥；接下来约 10 分钟内直接使用密钥。
 ```
 
 and, while the cooldown is active:
 
 ```
-⚠️ Tavily keyless 冷却中（约剩 7 分钟），这次使用 API key。
+⚠️ Tavily 免密钥服务冷却中（约剩 7 分钟），这次使用密钥。
 ```
 
 Both also emit a `warn` to the harness log. A happy path is silent. The wording above is
@@ -240,8 +240,9 @@ environment.
 `ctx.web.search()`, and the seam resolves one registered provider. Three rows decide which:
 
 - the `web` row pins `searchProvider: tavily`, so the seam always resolves this package;
-- this package's provider is registered and available as it always was — a resolvable
-  credential and a parseable base URL — and its `search()` routes on the `provider` setting;
+- this package's provider is registered and available whenever its base URL parses — the
+  keyless tier needs no credential, so a stored key is not a precondition — and its
+  `search()` routes on the `provider` setting;
 - the `web-search-deepseek` row stays disabled, which is what keeps the Plugins page to one
   search card.
 
@@ -268,8 +269,9 @@ of these rows — but you must restate the whole config to do so.
   the wrong channel for anything sensitive — see
   [Tavily on keyless](https://www.tavily.com/blog/What-keyless-search-really-means-for-your-data).
   Set `mode: key-first` if you would rather always use your own account.
-- **The card covers `mode` and the cooldown only.** The remaining keys are set in the profile
-  patch or the settings document, and there is no "test this key" button.
+- **The card covers `provider`, `language`, `mode` and the cooldown.** The remaining keys —
+  `apiKey`, `apiKeyEnv`, `baseURL`, `searchDepth`, `maxResults` and `includeAnswer` — are set
+  in the profile patch or the settings document, and there is no "test this key" button.
 - **Traditional Chinese is a language pack, not a build of `zh`.** The harness reads bare
   `zh` as Simplified, so 繁體 lives at `zh-Hant`. It shows up in the language list as an
   extra entry rather than as a variant of 中文, and a Traditional reader has to pick it
