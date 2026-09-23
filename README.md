@@ -45,11 +45,11 @@ dsh plugin --profile web add github:ShawnOY/dsh-tavily
 
 Either form installs the same package. It declares `dsh.bundle.patch`, so `dsh plugin add`
 registers it in the profile's `dsh.profile.bundles` and its shipped patch mounts the
-provider, leaves the web seam's search unpinned, and switches off the DeepSeek search
-provider the base bundle ships. `web_search` is therefore Tavily-backed, and
-**Settings → Plugins → Plugin configuration** shows this plugin's card alone — until you
-pick `deepseek-official` there, which brings the shipped provider and its card back. Nothing
-else to configure.
+provider, pins the web seam's search to it, and switches off the DeepSeek search provider the
+base bundle ships. `web_search` is therefore Tavily-backed, and
+**Settings → Plugins → Plugin configuration** shows this plugin's card alone. Its **Search
+provider** select switches to the shipped DeepSeek backend without a restart. Nothing else to
+configure.
 
 Restart the harness afterwards: the base `hmr` row is disabled, so a newly added module
 is not hot-reloaded.
@@ -85,13 +85,14 @@ If you would rather not install a package, copy this directory to
         apiKeyEnv: TAVILY_API_KEY
 
 # The shipped DeepSeek provider starts off, so the default selection is this
-# one. The card switches between them — do NOT pin `searchProvider` on the web
-# row below, or the switch cannot take effect.
+# one; the card switches between them inside this plugin. Pinning the seam is
+# what keeps a third search provider from making it ambiguous.
 - id: web-search-deepseek
   disabled: true
 
 - id: web
   config:
+    searchProvider: tavily
     fetchProvider: http
 ```
 
@@ -219,50 +220,49 @@ provider** select:
 | Value | Backend | Cards on the page |
 | --- | --- | --- |
 | `tavily` *(default)* | This plugin, keyless-first | This one |
-| `deepseek-official` | The DeepSeek search provider `dsh-base` ships | This one, and that one |
+| `deepseek-official` | The DeepSeek search provider `dsh-base` ships, run inside this plugin | This one |
 
 The choice applies to the next `web_search` — no restart — and it is stored in the settings
 document, so it survives one. The profile patch remains the value a reset returns to.
 
-The seam holds no pinned provider, so it resolves whichever provider is usable at call time.
-That is what makes the switch work, and it is also why a third search provider installed
-alongside these two would fail every search with `WEB_PROVIDER_AMBIGUOUS`: pin
-`searchProvider` on the `web` row yourself in that case.
+Both selections answer through this plugin, so the page keeps one search card either way. The
+seam is pinned to this provider and never re-resolves, which also means a third search
+provider installed alongside cannot make it ambiguous.
 
-The switch is not atomic underneath. The setting commits before the shipped row is toggled,
-so a search issued in that instant can fail with `WEB_PROVIDER_UNAVAILABLE` or
-`WEB_PROVIDER_AMBIGUOUS`. It never silently answers from the backend you did not pick.
+The one thing the built-in selection does not carry over is its settings card. The shipped
+provider's endpoint and model stay on their defaults, with `DEEPSEEK_SEARCH_BASE_URL` as the
+override, and its key is read from `DEEPSEEK_API_KEY` in the credential store or the
+environment.
 
 ## How the switch is wired
 
 `web_search` is not a search engine of its own: it is a model-facing tool that calls
 `ctx.web.search()`, and the seam resolves one registered provider. Three rows decide which:
 
-- the `web` row carries **no** `searchProvider`, so the seam picks whichever provider is
-  usable at call time;
-- this plugin's provider is always registered, but `available()` is false unless it is the
-  selected backend **and** the shipped row is currently disabled;
-- the `web-search-deepseek` row is enabled exactly while the shipped provider is selected,
-  and the card toggles it at runtime through the loader.
+- the `web` row pins `searchProvider: tavily`, so the seam always resolves this package;
+- this package's provider is registered and available as it always was — a resolvable
+  credential and a parseable base URL — and its `search()` routes on the `provider` setting;
+- the `web-search-deepseek` row stays disabled, which is what keeps the Plugins page to one
+  search card.
 
-"Two usable" is therefore impossible: this provider being usable requires the shipped row to
-be off, and the shipped provider being usable requires it to be on. When a toggle fails —
-because a future harness renamed the row, say — the failure is a `warn` in the harness log,
-and a built-in selection then fails loudly with `WEB_PROVIDER_UNAVAILABLE` rather than
-silently answering from the wrong backend.
+Picking `deepseek-official` therefore does not move the pin or touch the loader. This package
+imports `DeepSeekSearchProvider` from `@deepseek-ai/dsh-web-search-deepseek` — a declared peer
+dependency — and delegates to it, so that backend's behaviour, errors and endpoint handling
+are the shipped ones. What it costs is that the shipped provider's own configuration card is
+gone, and with it the ability to edit that endpoint and model from the UI.
 
 The patch also restates `fetchProvider: http`, because a patch replaces the targeted row's
 **whole** `config` and dropping it would leave the web fetch provider unset.
 
-Your own `cordis.patch.yml` is applied after every bundle layer, so you can still override
-any of these rows — but you must restate the whole config to do so, and the runtime setting
-wins over a row's composed `disabled` on the next change.
+Your own `cordis.patch.yml` is applied after every bundle layer, so you can still override any
+of these rows — but you must restate the whole config to do so.
 
 ## Caveats
 
-- **The shipped DeepSeek search provider starts switched off.** The default selection is
-  Tavily, so **Settings → Plugins** shows this plugin's card alone. Pick
-  `deepseek-official` in the card and that provider's own card comes back next to this one.
+- **The shipped DeepSeek search provider starts switched off, and its settings card stays
+  off.** The default selection is Tavily, so **Settings → Plugins** shows this plugin's card
+  alone; picking `deepseek-official` runs that backend without bringing its card back. Its
+  endpoint and model are not editable from the UI.
 - **Keyless has no account and no contract.** You accept no terms and hold the least
   leverage over what happens to your data. It is the right default for trying a tool and
   the wrong channel for anything sensitive — see
