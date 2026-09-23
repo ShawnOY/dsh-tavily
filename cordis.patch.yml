@@ -1,27 +1,41 @@
 # Tavily-backed web search for the DeepSeek Harness web seam (ctx.web).
 #
-# This bundle contributes two rows: it mounts this package's search provider,
-# and it points the web seam's search at it.
+# This bundle contributes three rows: it mounts this package's search provider,
+# it points the web seam's search at it, and it switches off the DeepSeek search
+# provider the base bundle ships. The result is one search provider and one
+# Plugins card, not two.
 #
 # `name:` on the inserted row must match this package's package.json `name` —
 # renaming the package means updating that line too, or the row will not
 # resolve.
 #
+# Disabling `web-search-deepseek` is what makes this package the deployment's
+# search provider instead of a second one. That row is inserted by `dsh-base`,
+# so leaving it enabled puts two providers in the seam's registry and two cards
+# in Settings → Plugins → Plugin configuration. A disabled row never loads, so
+# it registers neither. A patch that matches no row only warns and is skipped,
+# so this line is harmless on a profile that never had the row.
+#
 # A patch replaces the targeted row's WHOLE `config`, so the base `web` row is
 # restated in full: `fetchProvider` keeps the http provider the base already
-# selected. Pinning `searchProvider` is required rather than optional — both
-# registered providers report `available() === true` (each can only prove a
-# credential resolver exists, not that a key is set), so an unpinned seam would
-# fail every search with WEB_PROVIDER_AMBIGUOUS.
+# selected. `searchProvider: tavily` is stated explicitly rather than left to
+# the seam's "exactly one usable provider" rule — both providers report
+# `available() === true` (each can only prove a credential resolver exists, not
+# that a key is set), so the pin holds the seam on Tavily even if the shipped
+# provider is switched back on later.
 #
 # A user's own cordis.patch.yml is applied after every bundle layer, so it can
-# still override either row — but it must restate the whole config to do so.
+# still override any of these rows — restate the whole config to change one, and
+# set `disabled: false` on `web-search-deepseek` to run both providers.
 
 - insert:
     - id: web-search-tavily
       name: '@0x427567/dsh-tavily'
       config:
         apiKeyEnv: TAVILY_API_KEY
+
+- id: web-search-deepseek
+  disabled: true
 
 - id: web
   config:

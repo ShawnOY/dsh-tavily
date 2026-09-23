@@ -45,7 +45,10 @@ dsh plugin --profile web add github:ShawnOY/dsh-tavily
 
 Either form installs the same package. It declares `dsh.bundle.patch`, so `dsh plugin add`
 registers it in the profile's `dsh.profile.bundles` and its shipped patch mounts the
-provider and points the web seam's search at it. Nothing else to configure.
+provider, points the web seam's search at it, and switches off the DeepSeek search provider
+the base bundle ships. `web_search` is therefore Tavily-backed, and
+**Settings → Plugins → Plugin configuration** shows this plugin's card *instead of* the
+shipped "Web search" card — not both. Nothing else to configure.
 
 Restart the harness afterwards: the base `hmr` row is disabled, so a newly added module
 is not hot-reloaded.
@@ -79,6 +82,11 @@ If you would rather not install a package, copy this directory to
       name: ./plugins/tavily-search/index.js
       config:
         apiKeyEnv: TAVILY_API_KEY
+
+# Optional, and only if you want Tavily to be the profile's one search
+# provider: the shipped DeepSeek provider is otherwise registered too.
+- id: web-search-deepseek
+  disabled: true
 
 - id: web
   config:
@@ -201,21 +209,36 @@ Choosing a language in **Settings → General → Language** persists it and clo
 Nothing else can: the browser's language list never leaves the client, and the client
 deliberately does not write a browser-derived guess into the durable settings document.
 
-## Why `searchProvider` must be pinned
+## Why the shipped DeepSeek provider is switched off
 
-The shipped patch sets `searchProvider: tavily`, and that is required rather than
-cosmetic. Both registered providers report `available() === true`, because each can only
-prove a credential *resolver* exists — not that a key is set. An unpinned seam therefore
-fails every search with `WEB_PROVIDER_AMBIGUOUS`.
+`web_search` is not a search engine of its own: it is a model-facing tool that calls
+`ctx.web.search()`, and the seam resolves one registered provider by id. The base bundle
+registers the DeepSeek provider and points the seam at it, so a Tavily plugin that merely
+*added* a provider would leave two in the registry — two search backends, and two cards on
+the Plugins page. The shipped patch therefore also disables the `web-search-deepseek` row.
+A disabled row never loads, so it registers neither the provider nor its settings
+namespace, and **Settings → Plugins → Plugin configuration** shows this plugin's card
+alone. Set `disabled: false` on that row in your own patch layer if you want both.
 
 The patch also restates `fetchProvider: http`, because a patch replaces the targeted
 row's **whole** `config` and dropping it would leave the web fetch provider unset.
 
+`searchProvider: tavily` is kept as well. With the shipped provider off it is not strictly
+required — the seam would find exactly one usable provider — but both providers report
+`available() === true`, because each can only prove a credential *resolver* exists, not
+that a key is set. The explicit pin holds the seam on Tavily if the shipped provider is
+switched back on later; an unpinned seam with two usable providers fails every search with
+`WEB_PROVIDER_AMBIGUOUS`.
+
 Your own `cordis.patch.yml` is applied after every bundle layer, so you can still
-override either row — but you must restate the whole config to do so.
+override any of these rows — but you must restate the whole config to do so.
 
 ## Caveats
 
+- **Installing this plugin switches off the shipped DeepSeek search provider.** That is what
+  makes Tavily the profile's one search provider rather than a second one, and it is why the
+  shipped "Web search" card disappears. Re-enable `web-search-deepseek` in your own patch
+  layer if you would rather keep both.
 - **Keyless has no account and no contract.** You accept no terms and hold the least
   leverage over what happens to your data. It is the right default for trying a tool and
   the wrong channel for anything sensitive — see
