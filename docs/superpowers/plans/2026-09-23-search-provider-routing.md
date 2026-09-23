@@ -104,7 +104,9 @@ check('a shipped-backend failure surfaces as its own error', String(routedError?
 - [ ] **Step 4: Run the test to verify it fails**
 
 Run: `node test/provider.test.mjs`
-Expected: FAIL on `selecting the shipped provider posts to the Messages endpoint`, `and its sources come back mapped` and `a shipped-backend failure surfaces as its own error` — with no routing, all three go through the Tavily path. `the default selection posts to the Tavily endpoint` and `and no second request is made` pass. Total: 65 passed, 3 failed.
+Expected: `60 passed, 8 failed`. The three routing checks that need the new path fail — `selecting the shipped provider posts to the Messages endpoint`, `and its sources come back mapped`, and `a shipped-backend failure surfaces as its own error` — and so does `and no second request is made`, because the Tavily path treats a DeepSeek-shaped 200 as a keyless refusal and retries. Four unrelated log-count checks fail too, because the loader code this task removes does not go away until Steps 10 and 13, so `syncBuiltinRow` still logs a missing-loader warning into a stub that four sections assert is empty.
+
+This intermediate count is expected to look worse than the count it replaces. Do not "fix" it by reordering the steps: the test edits have to land before the implementation for the new checks to be red for the right reason, and every failure disappears by Step 14.
 
 - [ ] **Step 5: Declare the peer dependency**
 
