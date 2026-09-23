@@ -337,7 +337,7 @@ const patchRows = patchText
 	.split('\n')
 	.filter((line) => !line.trimStart().startsWith('#'))
 	.join('\n');
-check('no provider is pinned', !patchRows.includes('searchProvider'), `(rows=${JSON.stringify(patchRows)})`);
+check('the seam is pinned to this provider', patchRows.includes('searchProvider: tavily'), `(rows=${JSON.stringify(patchRows)})`);
 check('the fetch provider is still restated', patchRows.includes('fetchProvider: http'));
 check('the shipped row is disabled by default', /- id: web-search-deepseek\n\s+disabled: true/.test(patchRows));
 
