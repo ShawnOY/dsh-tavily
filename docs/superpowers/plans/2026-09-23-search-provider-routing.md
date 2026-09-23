@@ -504,12 +504,23 @@ Expected: `package/LICENSE`, `package/README.md`, `package/client.js`, `package/
 
 - [ ] **Step 2: Install**
 
-Run:
+A plain re-add will **not** work here, and neither will `--force`. The profile already depends
+on `0.2.0` from the same `file:` path, so pnpm reports `Lockfile is up to date, resolution
+step is skipped`, reuses the store copy, and leaves the previous build installed — silently,
+with a success exit code. Remove the package first so the lockfile entry goes away and the
+tarball is re-resolved:
+
 ```bash
+dsh plugin --profile web remove @0x427567/dsh-tavily
 dsh plugin --profile web add /Users/shirelyhuang/Documents/Project/dsh-tavily-keyless/0x427567-dsh-tavily-0.2.0.tgz
-grep '"version"' ~/.dsh/profiles/web/node_modules/@0x427567/dsh-tavily/package.json
+grep -c deepSeekBackend ~/.dsh/profiles/web/node_modules/@0x427567/dsh-tavily/index.js
+grep -c syncBuiltinRow ~/.dsh/profiles/web/node_modules/@0x427567/dsh-tavily/index.js
+grep -A8 '"bundles"' ~/.dsh/profiles/web/package.json
 ```
-Expected: `"version": "0.2.0"`.
+
+Expected: the routing marker is at least `1`, the loader marker is `0`, and
+`@0x427567/dsh-tavily` is back as the last entry of `dsh.profile.bundles` — removing it drops
+that entry, and re-adding restores it in the same position.
 
 This writes outside the session workspace (pnpm's store and `~/.dsh/profiles/web`), so it needs
 the wider sandbox mode. Do **not** restart the harness: `dsh web` is the server hosting the
