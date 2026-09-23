@@ -632,7 +632,7 @@ Expected: PASS on all six new checks, and section 3 still passes because all thr
 - [ ] **Step 7: Run both suites**
 
 Run: `npm test`
-Expected: `69 passed, 0 failed` then `38 passed, 0 failed`.
+Expected: `73 passed, 0 failed` then `38 passed, 0 failed`.
 
 - [ ] **Step 8: Commit**
 
