@@ -45,10 +45,11 @@ dsh plugin --profile web add github:ShawnOY/dsh-tavily
 
 Either form installs the same package. It declares `dsh.bundle.patch`, so `dsh plugin add`
 registers it in the profile's `dsh.profile.bundles` and its shipped patch mounts the
-provider, points the web seam's search at it, and switches off the DeepSeek search provider
-the base bundle ships. `web_search` is therefore Tavily-backed, and
-**Settings → Plugins → Plugin configuration** shows this plugin's card *instead of* the
-shipped "Web search" card — not both. Nothing else to configure.
+provider, leaves the web seam's search unpinned, and switches off the DeepSeek search
+provider the base bundle ships. `web_search` is therefore Tavily-backed, and
+**Settings → Plugins → Plugin configuration** shows this plugin's card alone — until you
+pick `deepseek-official` there, which brings the shipped provider and its card back. Nothing
+else to configure.
 
 Restart the harness afterwards: the base `hmr` row is disabled, so a newly added module
 is not hot-reloaded.
@@ -83,14 +84,14 @@ If you would rather not install a package, copy this directory to
       config:
         apiKeyEnv: TAVILY_API_KEY
 
-# Optional, and only if you want Tavily to be the profile's one search
-# provider: the shipped DeepSeek provider is otherwise registered too.
+# The shipped DeepSeek provider starts off, so the default selection is this
+# one. The card switches between them — do NOT pin `searchProvider` on the web
+# row below, or the switch cannot take effect.
 - id: web-search-deepseek
   disabled: true
 
 - id: web
   config:
-    searchProvider: tavily
     fetchProvider: http
 ```
 
