@@ -31,6 +31,14 @@
 import z from '@deepseek-ai/schemastery';
 import { credentialRef } from '@deepseek-ai/dsh-credentials';
 import { WebError } from '@deepseek-ai/dsh-web';
+import {
+	DeepSeekSearchProvider,
+	DEEPSEEK_DEFAULT_API_VERSION,
+	DEEPSEEK_DEFAULT_BASE_URL,
+	DEEPSEEK_DEFAULT_MAX_TOKENS,
+	DEEPSEEK_DEFAULT_MAX_USES,
+	DEEPSEEK_DEFAULT_MODEL
+} from '@deepseek-ai/dsh-web-search-deepseek';
 
 /** Cordis plugin name used by loader diagnostics. */
 const name = 'web-search-tavily';
@@ -42,8 +50,10 @@ const TAVILY_PROVIDER_ID = 'tavily';
 const BUILTIN_PROVIDER_ID = 'deepseek-official';
 /** Backends the `provider` field accepts; each value is a seam provider id. */
 const PROVIDER_VALUES = [TAVILY_PROVIDER_ID, BUILTIN_PROVIDER_ID];
-/** Loader row id of the shipped DeepSeek search provider this bundle switches off. */
-const BUILTIN_ROW_ID = 'web-search-deepseek';
+/** Credential ref the shipped DeepSeek search provider reads by default. */
+const BUILTIN_API_KEY_ENV = 'DEEPSEEK_API_KEY';
+/** Environment override for the shipped provider's endpoint. */
+const BUILTIN_BASE_URL_ENV = 'DEEPSEEK_SEARCH_BASE_URL';
 /** Credential reference resolved per search. */
 const DEFAULT_API_KEY_ENV = 'TAVILY_API_KEY';
 /** Tavily's public API base; `/search` is appended. */
@@ -197,18 +207,30 @@ function messages(options) {
 	return MESSAGES[options.locale] ?? MESSAGES[DEFAULT_NOTICE_LOCALE];
 }
 
+/**
+ * Resolve one credential ref the way the harness does: the credentials service
+ * first, then the environment that launched the harness.
+ *
+ * @param ctx - plugin context whose optional credentials service owns the store.
+ * @param ref - the normalized credential reference to resolve.
+ * @returns a thunk resolving the stored value, or `undefined` when nothing is.
+ */
+function credentialResolver(ctx, ref) {
+	return async () => {
+		const credentials = ctx.get('credentials');
+		if (credentials !== undefined) return (await credentials.resolve(ref))?.value;
+		const ambient = process.env[ref];
+		return ambient !== undefined && ambient.length > 0 ? ambient : undefined;
+	};
+}
+
 /** Project one resolved config section into the options one search uses. */
 function resolveOptions(ctx, config) {
 	const apiKeyEnv = credentialRef(config.apiKeyEnv ?? DEFAULT_API_KEY_ENV);
 	const literalApiKey = config.apiKey !== undefined && config.apiKey.length > 0 ? config.apiKey : undefined;
 	return {
 		...(literalApiKey === undefined ? {} : { apiKey: literalApiKey }),
-		resolveApiKey: async () => {
-			const credentials = ctx.get('credentials');
-			if (credentials !== undefined) return (await credentials.resolve(apiKeyEnv))?.value;
-			const ambient = process.env[apiKeyEnv];
-			return ambient !== undefined && ambient.length > 0 ? ambient : undefined;
-		},
+		resolveApiKey: credentialResolver(ctx, apiKeyEnv),
 		apiKeyEnv,
 		baseURL: config.baseURL ?? DEFAULT_BASE_URL,
 		searchDepth: config.searchDepth ?? DEFAULT_SEARCH_DEPTH,
@@ -337,72 +359,30 @@ function describeRefusal(payload) {
 	return '';
 }
 
-/** The loader service, or `undefined` when this composition has none. */
-function loaderOf(ctx) {
-	try {
-		return ctx.get?.('loader');
-	} catch {
-		return undefined;
-	}
-}
-
-/** The shipped row's entry in a loader's entry list, or `undefined`. */
-function findBuiltinRow(loader) {
-	try {
-		for (const entry of loader.entries()) if (entry.id === BUILTIN_ROW_ID) return entry;
-	} catch {
-		// A loader that cannot list entries is treated as having no such row.
-	}
-	return undefined;
-}
-
 /**
- * Whether the shipped row is currently loaded. Read live on every `available()`
- * call rather than cached, because the row is toggled at runtime and the seam's
- * "exactly one usable provider" rule depends on this answer tracking the loader
- * rather than the setting.
+ * The shipped DeepSeek search provider, driven from this package's credentials
+ * and the shipped defaults.
  *
- * @param ctx - plugin context whose optional loader service owns the row.
- * @returns `true` only when the row is present and enabled.
+ * Built once per plugin instance and reused: the seam is pinned to this package,
+ * so swapping the backend is a routing decision inside `search()`, not a
+ * re-registration. Its endpoint and model stay on the shipped defaults — the
+ * card that used to edit them belongs to a row this bundle switches off — with
+ * `DEEPSEEK_SEARCH_BASE_URL` as the one override.
+ *
+ * @param ctx - plugin context whose credentials service resolves the key.
+ * @returns the provider to delegate to when the shipped backend is selected.
  */
-function builtinRowEnabled(ctx) {
-	const loader = loaderOf(ctx);
-	if (loader === undefined) return false;
-	const entry = findBuiltinRow(loader);
-	return entry !== undefined && !entry.disabled;
-}
-
-/**
- * Put the shipped row into the state the selected backend needs: enabled only
- * while the shipped provider is the selection.
- *
- * A missing loader or a missing row is reported and skipped rather than thrown,
- * so a profile without the shipped provider still runs this one. A toggle that
- * fails is loud in the log for the same reason — it is the one thing that can
- * leave the seam with no usable provider.
- *
- * @param ctx - plugin context whose optional loader service owns the row.
- * @param provider - the selected backend id.
- * @returns a promise that never rejects.
- */
-async function syncBuiltinRow(ctx, provider) {
-	const loader = loaderOf(ctx);
-	if (loader === undefined) {
-		ctx.logger?.warn?.(`Tavily search: no loader service, so the "${BUILTIN_ROW_ID}" row was left as composed.`);
-		return;
-	}
-	const entry = findBuiltinRow(loader);
-	if (entry === undefined) {
-		ctx.logger?.warn?.(`Tavily search: loader row "${BUILTIN_ROW_ID}" is not composed, so backend switching cannot work.`);
-		return;
-	}
-	const disabled = provider !== BUILTIN_PROVIDER_ID;
-	if (entry.disabled === disabled) return;
-	try {
-		await loader.update(BUILTIN_ROW_ID, { disabled });
-	} catch (error) {
-		ctx.logger?.warn?.(`Tavily search: could not ${disabled ? 'disable' : 'enable'} the "${BUILTIN_ROW_ID}" row: ${String(error)}`);
-	}
+function deepSeekBackend(ctx) {
+	const ref = credentialRef(BUILTIN_API_KEY_ENV);
+	return new DeepSeekSearchProvider(() => ({
+		resolveApiKey: credentialResolver(ctx, ref),
+		apiKeyEnv: ref,
+		baseURL: process.env[BUILTIN_BASE_URL_ENV] ?? DEEPSEEK_DEFAULT_BASE_URL,
+		model: DEEPSEEK_DEFAULT_MODEL,
+		apiVersion: DEEPSEEK_DEFAULT_API_VERSION,
+		maxTokens: DEEPSEEK_DEFAULT_MAX_TOKENS,
+		maxUses: DEEPSEEK_DEFAULT_MAX_USES
+	}));
 }
 
 /** The Tavily-backed search provider. */
@@ -411,20 +391,23 @@ class TavilySearchProvider {
 	id = TAVILY_PROVIDER_ID;
 	/** Epoch ms until which a refused keyless tier is skipped. In-memory only. */
 	keylessRefusedUntil = 0;
+	/** The shipped backend to delegate to when the settings select it. */
+	shippedBackend;
 
 	/**
 	 * @param resolveOptions_ - thunk returning the options for the NEXT search,
 	 * snapshotted once at each operation's entry so one search never mixes two
 	 * configuration sections.
+	 * @param shippedBackend_ - the shipped DeepSeek provider, used when the
+	 * settings select it instead of Tavily.
 	 */
-	constructor(resolveOptions_) {
+	constructor(resolveOptions_, shippedBackend_) {
 		this.resolveOptions = resolveOptions_;
+		this.shippedBackend = shippedBackend_;
 	}
 
 	available() {
 		const options = this.resolveOptions();
-		if (options.provider !== TAVILY_PROVIDER_ID) return false;
-		if (builtinRowEnabled(options.ctx)) return false;
 		return (options.apiKey !== undefined || options.resolveApiKey !== undefined) && URL.canParse(options.baseURL);
 	}
 
@@ -447,6 +430,9 @@ class TavilySearchProvider {
 
 	async search(request, signal) {
 		const options = this.resolveOptions();
+		// The seam is pinned to this package, so which backend answers is a
+		// routing decision here rather than a different registration.
+		if (options.provider === BUILTIN_PROVIDER_ID) return this.shippedBackend.search(request, signal);
 		const apiKey = await this.apiKey(options, signal);
 		const plan = this.plan(options, apiKey);
 		if (plan.length === 0) throw missingApiKey(options);
@@ -584,29 +570,15 @@ class TavilySearchProvider {
  */
 function apply(ctx, config) {
 	let current = () => config;
-	// Settings changes arrive one after another, but a row toggle is async and
-	// the settings provider does not await `onChange`. Chaining them keeps an
-	// earlier toggle from landing after a later one, which would leave the row
-	// disagreeing with the setting — the one state the availability rule above
-	// cannot tolerate.
-	let toggles = Promise.resolve();
-	const syncRow = () => {
-		const run = () => syncBuiltinRow(ctx, current().provider ?? TAVILY_PROVIDER_ID);
-		toggles = toggles.then(run, run);
-		return toggles;
-	};
 	ctx.inject(['settings'], (settingsCtx) => {
 		settingsCtx.settings.installSection(ctx, SETTINGS_NAMESPACE, Config, config, {
 			setSource: (source) => {
 				current = source;
 			},
-			// Also fires at attach, so boot applies the persisted choice.
-			onChange: syncRow
+			onChange: () => {}
 		});
 	});
-	ctx.web.registerSearchProvider(new TavilySearchProvider(() => resolveOptions(ctx, current())));
-	// Covers a composition with no settings service, where `onChange` never fires.
-	void syncRow();
+	ctx.web.registerSearchProvider(new TavilySearchProvider(() => resolveOptions(ctx, current()), deepSeekBackend(ctx)));
 }
 
 export { Config, SETTINGS_NAMESPACE, TAVILY_PROVIDER_ID, TavilySearchProvider, apply, inject, name };

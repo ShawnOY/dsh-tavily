@@ -40,7 +40,7 @@ let logs = [];
 const realFetch = globalThis.fetch;
 
 globalThis.fetch = async (url, init) => {
-	seen.push({ headers: init.headers, body: JSON.parse(init.body) });
+	seen.push({ url: String(url), headers: init.headers, body: JSON.parse(init.body) });
 	const next = queue.shift();
 	if (next === undefined) throw new Error('unexpected extra fetch');
 	return next();
@@ -50,7 +50,7 @@ globalThis.fetch = async (url, init) => {
 let sections = [];
 
 /** Build a provider wired to a stub context. */
-function provider({ key, config = {}, locale, loader = stubLoader() } = {}) {
+function provider({ key, config = {}, locale } = {}) {
 	const registered = [];
 	sections = [];
 	const ctx = {
@@ -60,7 +60,6 @@ function provider({ key, config = {}, locale, loader = stubLoader() } = {}) {
 			// The Host reads the harness locale preference from the settings
 			// document; absent service or namespace means "no preference".
 			if (name === 'settings') return { get: (ns) => (ns === 'locale' && locale !== undefined ? { preference: locale } : undefined) };
-			if (name === 'loader' && loader !== null) return loader;
 			return undefined;
 		},
 		logger: { warn: (message) => logs.push(String(message)) },
@@ -78,30 +77,6 @@ const reset = () => {
 	queue = [];
 	logs = [];
 };
-
-/** Let a fire-and-forget row sync settle before asserting on it. */
-const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
-
-/**
- * A stub loader holding the shipped row, whose `disabled` flag the plugin flips.
- * `failUpdate` models a row the plugin can see but cannot toggle, and `delayMs`
- * models a row whose enable and disable take different amounts of time.
- */
-function stubLoader({ rows = [{ id: 'web-search-deepseek', disabled: true }], failUpdate = false, delayMs = () => 0 } = {}) {
-	const state = rows.map((row) => ({ ...row }));
-	return {
-		state,
-		entries: () => state,
-		update: async (id, options) => {
-			const wait = delayMs(options);
-			if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
-			if (failUpdate) throw new Error('loader refused the update');
-			const row = state.find((candidate) => candidate.id === id);
-			if (row === undefined) throw new Error(`no row ${id}`);
-			Object.assign(row, options);
-		}
-	};
-}
 
 // Keep the stub runs deterministic even when the developer exports the key.
 const envKey = process.env.TAVILY_API_KEY;
@@ -322,51 +297,39 @@ check('an unknown language is rejected', (() => {
 	}
 })());
 
-console.log('13. provider selection');
+console.log('13. provider routing');
 reset();
-const offLoader = stubLoader({ rows: [{ id: 'web-search-deepseek', disabled: false }] });
-const offProvider = provider({ key: 'tvly-k', loader: offLoader });
-await settle();
-check('selecting Tavily disables the shipped row', offLoader.state[0].disabled === true, `(got ${offLoader.state[0].disabled})`);
-check('and Tavily stays available', offProvider.available() === true);
+queue = [() => new Response(okBody(), { status: 200 })];
+await provider({ key: 'tvly-k' }).search({ query: 'q' });
+check('the default selection posts to the Tavily endpoint', seen[0].url === 'https://api.tavily.com/search', `(got ${seen[0].url})`);
 
 reset();
-const onLoader = stubLoader();
-const onProvider = provider({ key: 'tvly-k', config: { provider: 'deepseek-official' }, loader: onLoader });
-await settle();
-check('selecting the shipped provider enables its row', onLoader.state[0].disabled === false, `(got ${onLoader.state[0].disabled})`);
-check('and Tavily reports itself unavailable', onProvider.available() === false);
+const deepSeekBody = JSON.stringify({
+	content: [{ type: 'web_search_tool_result', content: [{ type: 'web_search_result', url: 'https://ds.example/a', title: 'DSA' }] }]
+});
+queue = [() => new Response(deepSeekBody, { status: 200 })];
+// Caught rather than awaited bare: before routing exists the Tavily path gets
+// this body and throws, which would abort the rest of the file instead of
+// failing these checks.
+let routed;
+try {
+	routed = await provider({ key: 'ds-k', config: { provider: 'deepseek-official' } }).search({ query: 'q' });
+} catch (error) {
+	routed = { sources: [], error };
+}
+check('selecting the shipped provider posts to the Messages endpoint', seen[0].url === 'https://api.deepseek.com/anthropic/v1/messages', `(got ${seen[0].url})`);
+check('and its sources come back mapped', routed.sources.length === 1 && routed.sources[0].url === 'https://ds.example/a', `(got ${JSON.stringify(routed.sources)})`);
+check('and no second request is made', seen.length === 1, `(got ${seen.length})`);
 
 reset();
-const stuck = provider({ key: 'tvly-k', loader: stubLoader({ rows: [{ id: 'web-search-deepseek', disabled: false }], failUpdate: true }) });
-await settle();
-check('a row that cannot be disabled keeps Tavily unavailable', stuck.available() === false);
-check('and the failure is logged', logs.some((line) => line.includes('could not')), `(logs=${JSON.stringify(logs)})`);
-
-reset();
-const orphan = provider({ key: 'tvly-k', config: { provider: 'deepseek-official' }, loader: stubLoader({ rows: [] }) });
-await settle();
-check('a missing shipped row leaves the shipped selection with nothing usable', orphan.available() === false);
-check('and the missing row is logged', logs.some((line) => line.includes('web-search-deepseek')), `(logs=${JSON.stringify(logs)})`);
-
-reset();
-provider({ key: 'tvly-k', loader: null });
-await settle();
-check('a composition with no loader is reported', logs.some((line) => line.includes('no loader')), `(logs=${JSON.stringify(logs)})`);
-
-reset();
-// Enabling is slow and disabling is instant, so without a serialized chain the
-// slow enable lands last and leaves the row on while the setting says Tavily.
-const raceLoader = stubLoader({ rows: [{ id: 'web-search-deepseek', disabled: true }], delayMs: (options) => (options.disabled ? 0 : 25) });
-provider({ key: 'tvly-k', loader: raceLoader });
-await settle();
-const raceHooks = sections[0][4];
-raceHooks.setSource(() => ({ provider: 'deepseek-official' }));
-raceHooks.onChange();
-raceHooks.setSource(() => ({ provider: 'tavily' }));
-raceHooks.onChange();
-await new Promise((resolve) => setTimeout(resolve, 60));
-check('the last setting wins when two toggles overlap', raceLoader.state[0].disabled === true, `(got ${raceLoader.state[0].disabled})`);
+queue = [() => new Response(JSON.stringify({ error: { message: 'nope' } }), { status: 500 })];
+let routedError;
+try {
+	await provider({ key: 'ds-k', config: { provider: 'deepseek-official' } }).search({ query: 'q' });
+} catch (error) {
+	routedError = error;
+}
+check('a shipped-backend failure surfaces as its own error', String(routedError?.message ?? '').includes('DeepSeek API error'), `(got ${String(routedError?.message)})`);
 
 console.log('14. the shipped patch leaves the seam unpinned');
 const patchText = await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8');
