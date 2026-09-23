@@ -29,7 +29,7 @@
  * @module @0x427567/dsh-tavily
  */
 import z from '@deepseek-ai/schemastery';
-import { credentialRef } from '@deepseek-ai/dsh-credentials';
+import { credentialRef, isCredentialRefName } from '@deepseek-ai/dsh-credentials';
 import { WebError } from '@deepseek-ai/dsh-web';
 import {
 	DeepSeekSearchProvider,
@@ -56,6 +56,12 @@ const BUILTIN_API_KEY_ENV = 'DEEPSEEK_API_KEY';
 const BUILTIN_BASE_URL_ENV = 'DEEPSEEK_SEARCH_BASE_URL';
 /** Credential reference resolved per search. */
 const DEFAULT_API_KEY_ENV = 'TAVILY_API_KEY';
+/**
+ * Name grammar a credential reference must match. The Config schema states it so
+ * a typo is a load-time validation error, where a bare `TypeError` out of
+ * `credentialRef` would surface much later as a failed search.
+ */
+const CREDENTIAL_REF_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /** Tavily's public API base; `/search` is appended. */
 const DEFAULT_BASE_URL = 'https://api.tavily.com';
 /** `basic` costs one credit per search; `advanced` costs more for richer snippets. */
@@ -111,7 +117,7 @@ const MESSAGES = {
 		httpFailed: (status, detail, endpoint) => `Tavily 搜索失败（HTTP ${status}）${detail === undefined ? '' : `：${detail}`}（端点 ${JSON.stringify(endpoint)}）`,
 		unprocessableBody: (error) => `Tavily 返回的响应内容无法解析：${String(error)}`,
 		noResultSet: (detail) => `Tavily 没有返回结果集${detail}`,
-		missingApiKey: (apiKeyEnv, mode) => `模式 "${mode}" 需要密钥，但凭据 "${apiKeyEnv}" 没有解析到值。请在 ~/.dsh/.credentials.yaml 的 refs 中提供，或在启动 Harness 的环境变量里设置，也可以在「Tavily 网页搜索」设置中直接填入 "apiKey"。`,
+		missingApiKey: (apiKeyEnv, mode) => `模式 "${mode}" 需要密钥，但凭据 "${apiKeyEnv}" 没有解析到值。请在 ~/.dsh/.credentials.yaml 的 refs 中提供，或在启动 Harness 的环境变量里设置，或在 profile 补丁中为本插件填入字面 "apiKey"（会写入配置文件，不推荐）。`,
 		credentialFailed: (error) => `Tavily 搜索凭据解析失败：${String(error)}`,
 		cooldownLog: (reason, minutes) => `Tavily 免密钥服务拒绝了请求（${reason}）；接下来 ${minutes} 分钟改用密钥。`,
 		refusalNotice: (minutes) => `⚠️ Tavily 免密钥额度已用尽，这次改用密钥；接下来约 ${minutes} 分钟内直接使用密钥。`,
@@ -123,7 +129,7 @@ const MESSAGES = {
 		httpFailed: (status, detail, endpoint) => `Tavily 搜尋失敗（HTTP ${status}）${detail === undefined ? '' : `：${detail}`}（端點 ${JSON.stringify(endpoint)}）`,
 		unprocessableBody: (error) => `Tavily 回傳的內容無法解析：${String(error)}`,
 		noResultSet: (detail) => `Tavily 沒有回傳結果集${detail}`,
-		missingApiKey: (apiKeyEnv, mode) => `模式 "${mode}" 需要金鑰，但憑證 "${apiKeyEnv}" 沒有解析到值。請寫入 ~/.dsh/.credentials.yaml 的 refs、在啟動 Harness 的環境變數中提供，或在「Tavily 網頁搜尋」設定中直接填入 "apiKey"。`,
+		missingApiKey: (apiKeyEnv, mode) => `模式 "${mode}" 需要金鑰，但憑證 "${apiKeyEnv}" 沒有解析到值。請寫入 ~/.dsh/.credentials.yaml 的 refs、在啟動 Harness 的環境變數中提供，或在 profile 補丁中為本外掛填入字面 "apiKey"（會寫入設定檔，不建議）。`,
 		credentialFailed: (error) => `Tavily 搜尋憑證解析失敗：${String(error)}`,
 		cooldownLog: (reason, minutes) => `Tavily 免金鑰服務拒絕了請求（${reason}）；接下來 ${minutes} 分鐘改用金鑰。`,
 		refusalNotice: (minutes) => `⚠️ Tavily 免金鑰額度已用盡，這次改用金鑰；接下來約 ${minutes} 分鐘內直接使用金鑰。`,
@@ -135,7 +141,7 @@ const MESSAGES = {
 		httpFailed: (status, detail, endpoint) => `Tavily search failed with HTTP ${status}${detail === undefined ? '' : `: ${detail}`} (endpoint ${JSON.stringify(endpoint)})`,
 		unprocessableBody: (error) => `Tavily returned a response we could not parse: ${String(error)}`,
 		noResultSet: (detail) => `Tavily returned no result set${detail}`,
-		missingApiKey: (apiKeyEnv, mode) => `Mode "${mode}" needs an API key, but the credential "${apiKeyEnv}" resolved to nothing; add it to ~/.dsh/.credentials.yaml under refs, export it in the environment that launched the harness, or set a literal "apiKey" in the "Tavily web search" settings`,
+		missingApiKey: (apiKeyEnv, mode) => `Mode "${mode}" needs an API key, but the credential "${apiKeyEnv}" resolved to nothing; add it to ~/.dsh/.credentials.yaml under refs, export it in the environment that launched the harness, or set a literal "apiKey" in this plugin's profile-patch config (it lands in a config file, so prefer the store)`,
 		credentialFailed: (error) => `Tavily search credential resolution failed: ${String(error)}`,
 		cooldownLog: (reason, minutes) => `Tavily keyless tier refused (${reason}); using the API key for the next ${minutes} minute(s).`,
 		refusalNotice: (minutes) => `⚠️ Tavily's keyless quota is exhausted, so this search used the API key; the next ~${minutes} minute(s) go straight to the API key.`,
@@ -145,7 +151,7 @@ const MESSAGES = {
 
 const Config = z.object({
 	apiKey: z.string().role('secret'),
-	apiKeyEnv: z.string().role('credential-ref').default(DEFAULT_API_KEY_ENV),
+	apiKeyEnv: z.string().role('credential-ref').pattern(CREDENTIAL_REF_PATTERN).default(DEFAULT_API_KEY_ENV),
 	baseURL: z.string().default(DEFAULT_BASE_URL),
 	searchDepth: z.string().default(DEFAULT_SEARCH_DEPTH),
 	maxResults: z.number().step(1).min(1).default(DEFAULT_MAX_RESULTS),
@@ -226,12 +232,19 @@ function credentialResolver(ctx, ref) {
 
 /** Project one resolved config section into the options one search uses. */
 function resolveOptions(ctx, config) {
-	const apiKeyEnv = credentialRef(config.apiKeyEnv ?? DEFAULT_API_KEY_ENV);
+	const apiKeyEnvName = config.apiKeyEnv ?? DEFAULT_API_KEY_ENV;
+	// A name outside the credential grammar has no reference to resolve, so it is
+	// treated as "no key" rather than letting `resolveOptions` throw. The seam
+	// calls `available()` while selecting a provider, where a raw `TypeError`
+	// would escape the WebError taxonomy entirely; `Config` rejects the value up
+	// front, so this is a backstop, not the guard.
+	const apiKeyEnv = isCredentialRefName(apiKeyEnvName) ? credentialRef(apiKeyEnvName) : undefined;
 	const literalApiKey = config.apiKey !== undefined && config.apiKey.length > 0 ? config.apiKey : undefined;
 	return {
 		...(literalApiKey === undefined ? {} : { apiKey: literalApiKey }),
-		resolveApiKey: credentialResolver(ctx, apiKeyEnv),
+		...(apiKeyEnv === undefined ? {} : { resolveApiKey: credentialResolver(ctx, apiKeyEnv) }),
 		apiKeyEnv,
+		apiKeyEnvName,
 		baseURL: config.baseURL ?? DEFAULT_BASE_URL,
 		searchDepth: config.searchDepth ?? DEFAULT_SEARCH_DEPTH,
 		maxResults: config.maxResults ?? DEFAULT_MAX_RESULTS,
@@ -341,7 +354,7 @@ function cooldownMinutes(ms) {
 
 /** The seam's error for a mode that requires a key when none resolved. */
 function missingApiKey(options) {
-	return new WebError(messages(options).missingApiKey(options.apiKeyEnv ?? DEFAULT_API_KEY_ENV, options.mode), 'WEB_PROVIDER_CREDENTIAL_MISSING');
+	return new WebError(messages(options).missingApiKey(options.apiKeyEnvName ?? DEFAULT_API_KEY_ENV, options.mode), 'WEB_PROVIDER_CREDENTIAL_MISSING');
 }
 
 /** Best-effort prose from a payload with no result set; a keyless cap explains itself. */
@@ -406,9 +419,17 @@ class TavilySearchProvider {
 		this.shippedBackend = shippedBackend_;
 	}
 
+	/**
+	 * Usable whenever the endpoint parses. The default tier needs no credential at
+	 * all, so a key is not a precondition here (for a well-formed `apiKeyEnv` the
+	 * old credential test was vacuously true: it asked whether a resolver existed,
+	 * not whether a key resolved). A key-requiring mode with no usable key is
+	 * reported by `search()` under its own code, which tells the operator far more
+	 * than the seam's generic "registered but unavailable".
+	 */
 	available() {
 		const options = this.resolveOptions();
-		return (options.apiKey !== undefined || options.resolveApiKey !== undefined) && URL.canParse(options.baseURL);
+		return URL.canParse(options.baseURL);
 	}
 
 	/**

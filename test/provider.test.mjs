@@ -219,6 +219,40 @@ check('an unknown provider is rejected', (() => {
 		return true;
 	}
 })());
+check('a shell-style credential ref is accepted', new mod.Config({ apiKeyEnv: '_TAVILY_KEY_2' }).apiKeyEnv === '_TAVILY_KEY_2');
+check('a credential ref outside the grammar is rejected', (() => {
+	try {
+		new mod.Config({ apiKeyEnv: 'env:FOO' });
+		return false;
+	} catch {
+		return true;
+	}
+})());
+
+console.log('10b. a credential ref outside the grammar cannot escape as a TypeError');
+// The schema is the guard; this is the backstop, because the seam calls
+// `available()` while selecting a provider and does not catch what it throws —
+// so a raw TypeError there would bypass the WebError taxonomy entirely.
+reset();
+const malformed = provider({ key: 'tvly-k', config: { apiKeyEnv: 'env:FOO' } });
+let availableAnswer;
+try {
+	availableAnswer = malformed.available();
+} catch (thrown) {
+	availableAnswer = thrown;
+}
+check('available() answers instead of throwing', availableAnswer === true, `(got ${String(availableAnswer)})`);
+check('an unparseable base URL is still unusable', provider({ config: { baseURL: 'not a url' } }).available() === false);
+reset();
+let malformedKeyOnly;
+try {
+	await provider({ key: 'tvly-k', config: { apiKeyEnv: 'env:FOO', mode: 'key-only' } }).search({ query: 'q' });
+} catch (error) {
+	malformedKeyOnly = error;
+}
+check('key-only with a malformed ref fails with a coded error', malformedKeyOnly?.code === 'WEB_PROVIDER_CREDENTIAL_MISSING', `(code=${malformedKeyOnly?.code})`);
+check('and the message names the ref as written', String(malformedKeyOnly?.message ?? '').includes('env:FOO'), `(message=${String(malformedKeyOnly?.message)})`);
+check('and no request was attempted', seen.length === 0, `(got ${seen.length})`);
 
 console.log('11. Host copy follows the harness locale preference');
 /** Run one refusal-to-key fallback under a preference and return the notice. */
@@ -308,9 +342,8 @@ const deepSeekBody = JSON.stringify({
 	content: [{ type: 'web_search_tool_result', content: [{ type: 'web_search_result', url: 'https://ds.example/a', title: 'DSA' }] }]
 });
 queue = [() => new Response(deepSeekBody, { status: 200 })];
-// Caught rather than awaited bare: before routing exists the Tavily path gets
-// this body and throws, which would abort the rest of the file instead of
-// failing these checks.
+// Caught rather than awaited bare, so a routing regression fails these checks
+// instead of aborting the rest of the file.
 let routed;
 try {
 	routed = await provider({ key: 'ds-k', config: { provider: 'deepseek-official' } }).search({ query: 'q' });
@@ -331,7 +364,7 @@ try {
 }
 check('a shipped-backend failure surfaces as its own error', String(routedError?.message ?? '').includes('DeepSeek API error'), `(got ${String(routedError?.message)})`);
 
-console.log('14. the shipped patch leaves the seam unpinned');
+console.log('14. the shipped patch pins the seam and retires the shipped row');
 const patchText = await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8');
 const patchRows = patchText
 	.split('\n')
