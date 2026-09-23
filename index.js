@@ -584,20 +584,29 @@ class TavilySearchProvider {
  */
 function apply(ctx, config) {
 	let current = () => config;
+	// Settings changes arrive one after another, but a row toggle is async and
+	// the settings provider does not await `onChange`. Chaining them keeps an
+	// earlier toggle from landing after a later one, which would leave the row
+	// disagreeing with the setting — the one state the availability rule above
+	// cannot tolerate.
+	let toggles = Promise.resolve();
+	const syncRow = () => {
+		const run = () => syncBuiltinRow(ctx, current().provider ?? TAVILY_PROVIDER_ID);
+		toggles = toggles.then(run, run);
+		return toggles;
+	};
 	ctx.inject(['settings'], (settingsCtx) => {
 		settingsCtx.settings.installSection(ctx, SETTINGS_NAMESPACE, Config, config, {
 			setSource: (source) => {
 				current = source;
 			},
 			// Also fires at attach, so boot applies the persisted choice.
-			onChange: () => {
-				void syncBuiltinRow(ctx, current().provider ?? TAVILY_PROVIDER_ID);
-			}
+			onChange: syncRow
 		});
 	});
 	ctx.web.registerSearchProvider(new TavilySearchProvider(() => resolveOptions(ctx, current())));
 	// Covers a composition with no settings service, where `onChange` never fires.
-	void syncBuiltinRow(ctx, current().provider ?? TAVILY_PROVIDER_ID);
+	void syncRow();
 }
 
 export { Config, SETTINGS_NAMESPACE, TAVILY_PROVIDER_ID, TavilySearchProvider, apply, inject, name };

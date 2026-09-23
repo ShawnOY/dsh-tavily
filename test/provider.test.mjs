@@ -82,14 +82,17 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 /**
  * A stub loader holding the shipped row, whose `disabled` flag the plugin flips.
- * `failUpdate` models a row the plugin can see but cannot toggle.
+ * `failUpdate` models a row the plugin can see but cannot toggle, and `delayMs`
+ * models a row whose enable and disable take different amounts of time.
  */
-function stubLoader({ rows = [{ id: 'web-search-deepseek', disabled: true }], failUpdate = false } = {}) {
+function stubLoader({ rows = [{ id: 'web-search-deepseek', disabled: true }], failUpdate = false, delayMs = () => 0 } = {}) {
 	const state = rows.map((row) => ({ ...row }));
 	return {
 		state,
 		entries: () => state,
 		update: async (id, options) => {
+			const wait = delayMs(options);
+			if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
 			if (failUpdate) throw new Error('loader refused the update');
 			const row = state.find((candidate) => candidate.id === id);
 			if (row === undefined) throw new Error(`no row ${id}`);
@@ -348,6 +351,20 @@ reset();
 provider({ key: 'tvly-k', loader: null });
 await settle();
 check('a composition with no loader is reported', logs.some((line) => line.includes('no loader')), `(logs=${JSON.stringify(logs)})`);
+
+reset();
+// Enabling is slow and disabling is instant, so without a serialized chain the
+// slow enable lands last and leaves the row on while the setting says Tavily.
+const raceLoader = stubLoader({ rows: [{ id: 'web-search-deepseek', disabled: true }], delayMs: (options) => (options.disabled ? 0 : 25) });
+provider({ key: 'tvly-k', loader: raceLoader });
+await settle();
+const raceHooks = sections[0][4];
+raceHooks.setSource(() => ({ provider: 'deepseek-official' }));
+raceHooks.onChange();
+raceHooks.setSource(() => ({ provider: 'tavily' }));
+raceHooks.onChange();
+await new Promise((resolve) => setTimeout(resolve, 60));
+check('the last setting wins when two toggles overlap', raceLoader.state[0].disabled === true, `(got ${raceLoader.state[0].disabled})`);
 
 if (process.env.TAVILY_LIVE_TEST !== '1') {
 	console.log('\n15. live Tavily calls — skipped (set TAVILY_LIVE_TEST=1 to enable)');
