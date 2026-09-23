@@ -93,36 +93,36 @@ const MESSAGES = {
 		aborted: () => 'Tavily 搜索已取消。',
 		requestFailed: (endpoint, error) => `Tavily 搜索请求 ${JSON.stringify(endpoint)} 失败：${String(error)}`,
 		httpFailed: (status, detail, endpoint) => `Tavily 搜索失败（HTTP ${status}）${detail === undefined ? '' : `：${detail}`}（端点 ${JSON.stringify(endpoint)}）`,
-		unprocessableBody: (error) => `Tavily 响应主体无法解析：${String(error)}`,
+		unprocessableBody: (error) => `Tavily 返回的响应内容无法解析：${String(error)}`,
 		noResultSet: (detail) => `Tavily 没有返回结果集${detail}`,
-		missingApiKey: (apiKeyEnv, mode) => `Tavily 搜索在模式 "${mode}" 下需要 API key，但凭证 "${apiKeyEnv}" 没有解析到值；请写入 ~/.dsh/.credentials.yaml 的 refs、在启动 harness 的环境变量中提供，或在「Tavily 网页搜索」设置里给字面值 "apiKey"`,
-		credentialFailed: (error) => `Tavily 搜索凭证解析失败：${String(error)}`,
-		cooldownLog: (reason, minutes) => `Tavily keyless 层拒绝了请求（${reason}）；接下来 ${minutes} 分钟改用 API key。`,
-		refusalNotice: (minutes) => `⚠️ Tavily keyless 额度已用尽，这次改用 API key；接下来约 ${minutes} 分钟内直接使用 API key。`,
-		cooldownNotice: (minutes) => `⚠️ Tavily keyless 冷却中（约剩 ${minutes} 分钟），这次使用 API key。`
+		missingApiKey: (apiKeyEnv, mode) => `模式 "${mode}" 需要密钥，但凭据 "${apiKeyEnv}" 没有解析到值。请在 ~/.dsh/.credentials.yaml 的 refs 中提供，或在启动 Harness 的环境变量里设置，也可以在「Tavily 网页搜索」设置中直接填入 "apiKey"。`,
+		credentialFailed: (error) => `Tavily 搜索凭据解析失败：${String(error)}`,
+		cooldownLog: (reason, minutes) => `Tavily 免密钥服务拒绝了请求（${reason}）；接下来 ${minutes} 分钟改用密钥。`,
+		refusalNotice: (minutes) => `⚠️ Tavily 免密钥额度已用尽，这次改用密钥；接下来约 ${minutes} 分钟内直接使用密钥。`,
+		cooldownNotice: (minutes) => `⚠️ Tavily 免密钥服务冷却中（约剩 ${minutes} 分钟），这次使用密钥。`
 	},
 	'zh-Hant': {
 		aborted: () => 'Tavily 搜尋已取消。',
 		requestFailed: (endpoint, error) => `Tavily 搜尋請求 ${JSON.stringify(endpoint)} 失敗：${String(error)}`,
 		httpFailed: (status, detail, endpoint) => `Tavily 搜尋失敗（HTTP ${status}）${detail === undefined ? '' : `：${detail}`}（端點 ${JSON.stringify(endpoint)}）`,
-		unprocessableBody: (error) => `Tavily 回應主體無法解析：${String(error)}`,
+		unprocessableBody: (error) => `Tavily 回傳的內容無法解析：${String(error)}`,
 		noResultSet: (detail) => `Tavily 沒有回傳結果集${detail}`,
-		missingApiKey: (apiKeyEnv, mode) => `Tavily 搜尋在模式 "${mode}" 下需要 API key，但憑證 "${apiKeyEnv}" 沒有解析到值；請寫入 ~/.dsh/.credentials.yaml 的 refs、在啟動 harness 的環境變數中提供，或在「Tavily 網頁搜尋」設定裡給字面值 "apiKey"`,
+		missingApiKey: (apiKeyEnv, mode) => `模式 "${mode}" 需要金鑰，但憑證 "${apiKeyEnv}" 沒有解析到值。請寫入 ~/.dsh/.credentials.yaml 的 refs、在啟動 Harness 的環境變數中提供，或在「Tavily 網頁搜尋」設定中直接填入 "apiKey"。`,
 		credentialFailed: (error) => `Tavily 搜尋憑證解析失敗：${String(error)}`,
-		cooldownLog: (reason, minutes) => `Tavily keyless 層拒絕了請求（${reason}）；接下來 ${minutes} 分鐘改用 API key。`,
-		refusalNotice: (minutes) => `⚠️ Tavily keyless 額度已用盡，這次改用 API key；接下來約 ${minutes} 分鐘內直接使用 API key。`,
-		cooldownNotice: (minutes) => `⚠️ Tavily keyless 冷卻中（約剩 ${minutes} 分鐘），這次使用 API key。`
+		cooldownLog: (reason, minutes) => `Tavily 免金鑰服務拒絕了請求（${reason}）；接下來 ${minutes} 分鐘改用金鑰。`,
+		refusalNotice: (minutes) => `⚠️ Tavily 免金鑰額度已用盡，這次改用金鑰；接下來約 ${minutes} 分鐘內直接使用金鑰。`,
+		cooldownNotice: (minutes) => `⚠️ Tavily 免金鑰服務冷卻中（約剩 ${minutes} 分鐘），這次使用金鑰。`
 	},
 	en: {
 		aborted: () => 'Tavily search aborted.',
 		requestFailed: (endpoint, error) => `Tavily search request to ${JSON.stringify(endpoint)} failed: ${String(error)}`,
 		httpFailed: (status, detail, endpoint) => `Tavily search failed with HTTP ${status}${detail === undefined ? '' : `: ${detail}`} (endpoint ${JSON.stringify(endpoint)})`,
-		unprocessableBody: (error) => `Tavily returned an unprocessable response body: ${String(error)}`,
+		unprocessableBody: (error) => `Tavily returned a response we could not parse: ${String(error)}`,
 		noResultSet: (detail) => `Tavily returned no result set${detail}`,
-		missingApiKey: (apiKeyEnv, mode) => `Tavily search has no API key for "${apiKeyEnv}" and mode "${mode}" requires one; add it to ~/.dsh/.credentials.yaml under refs, export it in the environment that launched the harness, or set a literal "apiKey" in the "Tavily web search" config`,
+		missingApiKey: (apiKeyEnv, mode) => `Mode "${mode}" needs an API key, but the credential "${apiKeyEnv}" resolved to nothing; add it to ~/.dsh/.credentials.yaml under refs, export it in the environment that launched the harness, or set a literal "apiKey" in the "Tavily web search" settings`,
 		credentialFailed: (error) => `Tavily search credential resolution failed: ${String(error)}`,
 		cooldownLog: (reason, minutes) => `Tavily keyless tier refused (${reason}); using the API key for the next ${minutes} minute(s).`,
-		refusalNotice: (minutes) => `⚠️ Tavily keyless quota is exhausted, so this search used the API key; the next ~${minutes} minute(s) go straight to the API key.`,
+		refusalNotice: (minutes) => `⚠️ Tavily's keyless quota is exhausted, so this search used the API key; the next ~${minutes} minute(s) go straight to the API key.`,
 		cooldownNotice: (minutes) => `⚠️ Tavily keyless is cooling down (~${minutes} minute(s) left); this search used the API key.`
 	}
 };

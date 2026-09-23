@@ -167,8 +167,8 @@ const titleFor = (language) => {
 };
 check('`auto` defers to the shell', titleFor('auto') === 'shell:title', `(got ${titleFor('auto')})`);
 check('an unset field behaves as `auto`', titleFor(undefined) === 'shell:title', `(got ${titleFor(undefined)})`);
-check('`zh` renders Simplified', titleFor('zh') === 'Tavily 网页搜索（keyless 优先）', `(got ${titleFor('zh')})`);
-check('`zh-Hant` renders Traditional', titleFor('zh-Hant') === 'Tavily 網頁搜尋（keyless 優先）', `(got ${titleFor('zh-Hant')})`);
+check('`zh` renders Simplified', titleFor('zh') === 'Tavily 网页搜索（免密钥优先）', `(got ${titleFor('zh')})`);
+check('`zh-Hant` renders Traditional', titleFor('zh-Hant') === 'Tavily 網頁搜尋（免金鑰優先）', `(got ${titleFor('zh-Hant')})`);
 check('`en` renders English', titleFor('en') === 'Tavily web search (keyless first)', `(got ${titleFor('en')})`);
 
 console.log(`\n${pass} passed, ${fail} failed`);

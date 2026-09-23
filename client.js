@@ -108,7 +108,7 @@ window.__ModuleLoader__.load({
 							className: 'tk_head',
 							children: jsxs('span', {
 								className: 'tk_text',
-								children: [title, jsx('span', { className: 'tk_desc', children: copy('unavailable', 'This deployment does not serve this configuration.') })]
+								children: [title, jsx('span', { className: 'tk_desc', children: copy('unavailable', 'This deployment does not expose these settings.') })]
 							})
 						})
 					});
@@ -159,7 +159,7 @@ window.__ModuleLoader__.load({
 							onClick: () => setOpen(!open),
 							children: jsxs('span', {
 								className: 'tk_text',
-								children: [title, jsx('span', { className: 'tk_desc', children: copy('description', 'Search through Tavily. Works with no API key; the key is used only once the keyless tier refuses.') })]
+								children: [title, jsx('span', { className: 'tk_desc', children: copy('description', 'Search the web through Tavily. Works with no API key — your key is used only when the keyless tier refuses.') })]
 							})
 						}),
 						open
@@ -183,7 +183,7 @@ window.__ModuleLoader__.load({
 														)
 													)
 												}),
-												jsx('p', { className: 'tk_hint', children: copy('languageHint', 'Applies to this card and to the notices this plugin writes into the transcript.') })
+												jsx('p', { className: 'tk_hint', children: copy('languageHint', 'Applies to this card and to the notices this plugin adds to the conversation.') })
 											]
 										}),
 										jsxs('div', {
@@ -197,7 +197,7 @@ window.__ModuleLoader__.load({
 													onChange: (event) => change('mode', event.target.value),
 													children: MODES.map((mode) => jsx('option', { value: mode, children: copy('mode.' + mode, mode) }, mode))
 												}),
-												jsx('p', { className: 'tk_hint', children: copy('modeHint', 'keyless-first tries Tavily keyless and falls back to your key when that tier refuses.') })
+												jsx('p', { className: 'tk_hint', children: copy('modeHint', 'Keyless first tries Tavily without a key, then falls back to yours. The “only” modes never switch.') })
 											]
 										}),
 										jsxs('div', {
@@ -216,14 +216,14 @@ window.__ModuleLoader__.load({
 														change('keylessCooldownMinutes', Number.isFinite(parsed) && parsed >= 0 ? parsed : 0);
 													}
 												}),
-												jsx('p', { className: 'tk_hint', children: copy('cooldownHint', 'How long a refused keyless tier is skipped. 0 disables the cooldown.') })
+												jsx('p', { className: 'tk_hint', children: copy('cooldownHint', 'How long to skip the keyless tier after it refuses a request. 0 turns the cooldown off.') })
 											]
 										}),
 										jsxs('div', {
 											className: 'tk_footer',
 											children: [
 												dirty ? jsx('span', { className: 'tk_pending', children: copy('unsaved', 'Unsaved') }) : null,
-												failed ? jsx('span', { className: 'tk_failed', children: copy('saveFailed', 'Save failed') }) : null,
+												failed ? jsx('span', { className: 'tk_failed', children: copy('saveFailed', 'Save failed; your edits are kept.') }) : null,
 												jsx('button', {
 													type: 'button',
 													className: 'tk_btn tk_discard',
@@ -253,71 +253,71 @@ window.__ModuleLoader__.load({
 
 		const en = {
 			title: 'Tavily web search (keyless first)',
-			description: 'Search through Tavily. Works with no API key; the key is used only once the keyless tier refuses.',
+			description: 'Search the web through Tavily. Works with no API key — your key is used only when the keyless tier refuses.',
 			mode: 'Credential mode',
-			'mode.keyless-first': 'Keyless first, then the key',
+			'mode.keyless-first': 'Keyless first, key as fallback',
 			'mode.key-first': 'Key first',
 			'mode.keyless-only': 'Keyless only',
 			'mode.key-only': 'Key only',
-			modeHint: 'keyless-first tries Tavily keyless and falls back to your key when that tier refuses.',
+			modeHint: 'Keyless first tries Tavily without a key, then falls back to yours. The “only” modes never switch.',
 			cooldown: 'Keyless cooldown (minutes)',
-			cooldownHint: 'How long a refused keyless tier is skipped. 0 disables the cooldown.',
+			cooldownHint: 'How long to skip the keyless tier after it refuses a request. 0 turns the cooldown off.',
 			language: 'Language',
 			'language.auto': 'Follow the harness language',
-			languageHint: 'Applies to this card and to the notices this plugin writes into the transcript.',
+			languageHint: 'Applies to this card and to the notices this plugin adds to the conversation.',
 			unsaved: 'Unsaved',
-			saveFailed: 'Save failed',
+			saveFailed: 'Save failed; your edits are kept.',
 			save: 'Save',
 			saving: 'Saving…',
 			discard: 'Discard',
-			unavailable: 'This deployment does not serve this configuration.'
+			unavailable: 'This deployment does not expose these settings.'
 		};
 		/**
 		 * Simplified Chinese. This is the harness's own `zh`, so the card matches the
 		 * shell around it rather than being the odd one out.
 		 */
 		const zh = {
-			title: 'Tavily 网页搜索（keyless 优先）',
-			description: '通过 Tavily 搜索。没有 API key 也能用；只有在 keyless 被拒时才会动用你的 key。',
+			title: 'Tavily 网页搜索（免密钥优先）',
+			description: '通过 Tavily 搜索网页。没有密钥也能用；只有在免密钥服务拒绝请求时，才会改用你的密钥。',
 			mode: '凭证模式',
-			'mode.keyless-first': 'keyless 优先，被拒后改用 key',
-			'mode.key-first': 'key 优先',
-			'mode.keyless-only': '只用 keyless',
-			'mode.key-only': '只用 key',
-			modeHint: 'keyless 优先会先走 Tavily 免 key 层，被拒时才退回你的 key。',
-			cooldown: 'keyless 冷却（分钟）',
-			cooldownHint: 'keyless 被拒后跳过多久。设 0 等于关闭冷却。',
+			'mode.keyless-first': '免密钥优先，被拒时改用密钥',
+			'mode.key-first': '优先使用密钥',
+			'mode.keyless-only': '仅使用免密钥',
+			'mode.key-only': '仅使用密钥',
+			modeHint: '「免密钥优先」会先尝试 Tavily 的免密钥服务，被拒时才改用你的密钥；「仅使用」模式不会切换。',
+			cooldown: '免密钥冷却时间（分钟）',
+			cooldownHint: '免密钥服务被拒后要跳过多久。设为 0 表示不冷却。',
 			language: '语言',
-			'language.auto': '跟随 harness 语言',
-			languageHint: '适用于本卡片，以及本插件写入对话的提示。',
+			'language.auto': '与 Harness 界面语言一致',
+			languageHint: '适用于这张卡片，以及本插件在对话中显示的提示。',
 			unsaved: '尚未保存',
-			saveFailed: '保存失败',
+			saveFailed: '保存失败，已保留你的修改。',
 			save: '保存',
 			saving: '保存中…',
 			discard: '放弃修改',
-			unavailable: '这个部署没有提供此设置。'
+			unavailable: '这个部署没有开放这些设置。'
 		};
 		/** Traditional Chinese, offered as its own language pack rather than folded into `zh`. */
 		const zhHant = {
-			title: 'Tavily 網頁搜尋（keyless 優先）',
-			description: '透過 Tavily 搜尋。沒有 API key 也能用；只有在 keyless 被拒時才會動用你的 key。',
+			title: 'Tavily 網頁搜尋（免金鑰優先）',
+			description: '透過 Tavily 搜尋網頁。沒有金鑰也能用；只有在免金鑰服務拒絕請求時，才會改用你的金鑰。',
 			mode: '憑證模式',
-			'mode.keyless-first': 'keyless 優先，被拒後改用 key',
-			'mode.key-first': 'key 優先',
-			'mode.keyless-only': '只用 keyless',
-			'mode.key-only': '只用 key',
-			modeHint: 'keyless 優先會先走 Tavily 免 key 層，被拒時才退回你的 key。',
-			cooldown: 'keyless 冷卻（分鐘）',
-			cooldownHint: 'keyless 被拒後跳過多久。設 0 等於關閉冷卻。',
+			'mode.keyless-first': '免金鑰優先，被拒時改用金鑰',
+			'mode.key-first': '優先使用金鑰',
+			'mode.keyless-only': '僅使用免金鑰',
+			'mode.key-only': '僅使用金鑰',
+			modeHint: '「免金鑰優先」會先嘗試 Tavily 的免金鑰服務，被拒時才改用你的金鑰；「僅使用」模式不會切換。',
+			cooldown: '免金鑰冷卻時間（分鐘）',
+			cooldownHint: '免金鑰服務被拒後要跳過多久。設為 0 表示不冷卻。',
 			language: '語言',
-			'language.auto': '跟隨 harness 語言',
-			languageHint: '適用於本卡片，以及本外掛寫入對話的提示。',
+			'language.auto': '與 Harness 介面語言一致',
+			languageHint: '適用於這張卡片，以及本外掛在對話中顯示的提示。',
 			unsaved: '尚未儲存',
-			saveFailed: '儲存失敗',
+			saveFailed: '儲存失敗，已保留你的修改。',
 			save: '儲存',
 			saving: '儲存中…',
 			discard: '放棄修改',
-			unavailable: '這個部署沒有提供此設定。'
+			unavailable: '這個部署沒有開放這些設定。'
 		};
 
 		/**

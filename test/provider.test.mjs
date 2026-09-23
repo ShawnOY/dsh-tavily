@@ -97,7 +97,7 @@ check('two requests: keyless then key', seen.length === 2, `(got ${seen.length})
 check('the retry carried the key', seen[1].headers.authorization === 'Bearer tvly-k');
 check('the result still came back', result.sources.length === 2);
 check('notice reports the exhausted budget', typeof result.content === 'string' && result.content.includes('额度已用尽'), `(got ${JSON.stringify(result.content)})`);
-check('the operator was warned in the default language', logs.length === 1 && logs[0].includes('keyless 层拒绝了请求'), `(logs=${JSON.stringify(logs)})`);
+check('the operator was warned in the default language', logs.length === 1 && logs[0].includes('免密钥服务拒绝了请求'), `(logs=${JSON.stringify(logs)})`);
 
 console.log('3. while cooling down: straight to the key, with a cooldown notice');
 reset();
@@ -155,7 +155,7 @@ try {
 	check('key-only without a key throws', false, '(no throw)');
 } catch (error) {
 	check('key-only without a key throws', error.code === 'WEB_PROVIDER_CREDENTIAL_MISSING', `(code=${error.code})`);
-	check('the missing-key message is localized too', error.message.includes('需要 API key'), `(message=${error.message})`);}
+	check('the missing-key message is localized too', error.message.includes('需要密钥'), `(message=${error.message})`);}
 
 console.log('8. response mapping');
 reset();
@@ -233,7 +233,7 @@ reset();
 queue = [refused429, () => new Response(okBody(), { status: 200 })];
 const traditionalCooling = provider({ key: 'tvly-k', locale: 'zh-Hant' });
 await traditionalCooling.search({ query: 'q' });
-check('the Traditional log line is Traditional', logs.length === 1 && logs[0].includes('keyless 層拒絕了請求'), `(logs=${JSON.stringify(logs)})`);
+check('the Traditional log line is Traditional', logs.length === 1 && logs[0].includes('免金鑰服務拒絕了請求'), `(logs=${JSON.stringify(logs)})`);
 reset();
 queue = [refused429, () => new Response(okBody(), { status: 200 })];
 const englishCooling = provider({ key: 'tvly-k', locale: 'en' });
@@ -268,7 +268,7 @@ reset();
 queue = [refused429, () => new Response(okBody(), { status: 200 })];
 const chosenCooling = provider({ key: 'tvly-k', locale: 'en', config: { language: 'zh-Hant' } });
 await chosenCooling.search({ query: 'q' });
-check('the operator warning follows the choice too', logs.length === 1 && logs[0].includes('keyless 層拒絕了請求'), `(logs=${JSON.stringify(logs)})`);
+check('the operator warning follows the choice too', logs.length === 1 && logs[0].includes('免金鑰服務拒絕了請求'), `(logs=${JSON.stringify(logs)})`);
 reset();
 queue = [() => new Response(okBody(), { status: 200 })];
 result = await chosenCooling.search({ query: 'q' });
