@@ -207,6 +207,16 @@ check('an unknown mode is rejected', (() => {
 		return true;
 	}
 })());
+check('provider defaults to tavily', defaults.provider === 'tavily', `(got ${defaults.provider})`);
+check('the shipped provider id is accepted', new mod.Config({ provider: 'deepseek-official' }).provider === 'deepseek-official');
+check('an unknown provider is rejected', (() => {
+	try {
+		new mod.Config({ provider: 'nonsense' });
+		return false;
+	} catch {
+		return true;
+	}
+})());
 
 console.log('11. Host copy follows the harness locale preference');
 /** Run one refusal-to-key fallback under a preference and return the notice. */

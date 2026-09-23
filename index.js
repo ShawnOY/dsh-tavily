@@ -38,6 +38,10 @@ const name = 'web-search-tavily';
 const inject = ['web'];
 /** Stable id this provider registers under. */
 const TAVILY_PROVIDER_ID = 'tavily';
+/** Provider id of the search backend the shipped `dsh-base` bundle registers. */
+const BUILTIN_PROVIDER_ID = 'deepseek-official';
+/** Backends the `provider` field accepts; each value is a seam provider id. */
+const PROVIDER_VALUES = [TAVILY_PROVIDER_ID, BUILTIN_PROVIDER_ID];
 /** Credential reference resolved per search. */
 const DEFAULT_API_KEY_ENV = 'TAVILY_API_KEY';
 /** Tavily's public API base; `/search` is appended. */
@@ -134,6 +138,7 @@ const Config = z.object({
 	searchDepth: z.string().default(DEFAULT_SEARCH_DEPTH),
 	maxResults: z.number().step(1).min(1).default(DEFAULT_MAX_RESULTS),
 	includeAnswer: z.boolean().default(false),
+	provider: z.union(PROVIDER_VALUES).default(TAVILY_PROVIDER_ID),
 	mode: z.union([MODE_KEYLESS_FIRST, MODE_KEY_FIRST, MODE_KEYLESS_ONLY, MODE_KEY_ONLY]).default(MODE_KEYLESS_FIRST),
 	keylessCooldownMinutes: z.number().step(1).min(0).default(DEFAULT_KEYLESS_COOLDOWN_MINUTES),
 	language: z.union(LANGUAGE_VALUES).default(LANGUAGE_AUTO)
@@ -207,6 +212,7 @@ function resolveOptions(ctx, config) {
 		searchDepth: config.searchDepth ?? DEFAULT_SEARCH_DEPTH,
 		maxResults: config.maxResults ?? DEFAULT_MAX_RESULTS,
 		includeAnswer: config.includeAnswer ?? false,
+		provider: config.provider ?? TAVILY_PROVIDER_ID,
 		mode: config.mode ?? MODE_KEYLESS_FIRST,
 		keylessCooldownMinutes: config.keylessCooldownMinutes ?? DEFAULT_KEYLESS_COOLDOWN_MINUTES,
 		locale: activeLocale(ctx, config.language),
