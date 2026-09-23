@@ -18,11 +18,11 @@
 #
 # A patch replaces the targeted row's WHOLE `config`, so the base `web` row is
 # restated in full: `fetchProvider` keeps the http provider the base already
-# selected. `searchProvider: tavily` is stated explicitly rather than left to
-# the seam's "exactly one usable provider" rule — both providers report
-# `available() === true` (each can only prove a credential resolver exists, not
-# that a key is set), so the pin holds the seam on Tavily even if the shipped
-# provider is switched back on later.
+# selected. `searchProvider` is deliberately NOT set: the seam resolves its
+# provider on every call, so leaving it unpinned is what lets the card's
+# `provider` setting switch backends without a restart. This package's provider
+# is usable only while the row below is off, and the shipped provider is usable
+# only while it is on, so the seam always sees exactly one usable provider.
 #
 # A user's own cordis.patch.yml is applied after every bundle layer, so it can
 # still override any of these rows — restate the whole config to change one, and
@@ -39,5 +39,4 @@
 
 - id: web
   config:
-    searchProvider: tavily
     fetchProvider: http

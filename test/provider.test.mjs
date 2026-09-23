@@ -12,6 +12,8 @@
  * must run where they resolve — for example inside the profile that has the
  * plugin installed, whose node_modules sits on the resolution path.
  */
+import { readFile } from 'node:fs/promises';
+
 const mod = await import(new URL('../index.js', import.meta.url));
 
 let pass = 0;
@@ -365,6 +367,16 @@ raceHooks.setSource(() => ({ provider: 'tavily' }));
 raceHooks.onChange();
 await new Promise((resolve) => setTimeout(resolve, 60));
 check('the last setting wins when two toggles overlap', raceLoader.state[0].disabled === true, `(got ${raceLoader.state[0].disabled})`);
+
+console.log('14. the shipped patch leaves the seam unpinned');
+const patchText = await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8');
+const patchRows = patchText
+	.split('\n')
+	.filter((line) => !line.trimStart().startsWith('#'))
+	.join('\n');
+check('no provider is pinned', !patchRows.includes('searchProvider'), `(rows=${JSON.stringify(patchRows)})`);
+check('the fetch provider is still restated', patchRows.includes('fetchProvider: http'));
+check('the shipped row is disabled by default', /- id: web-search-deepseek\n\s+disabled: true/.test(patchRows));
 
 if (process.env.TAVILY_LIVE_TEST !== '1') {
 	console.log('\n15. live Tavily calls — skipped (set TAVILY_LIVE_TEST=1 to enable)');
