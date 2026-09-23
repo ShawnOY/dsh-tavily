@@ -42,6 +42,8 @@ const TAVILY_PROVIDER_ID = 'tavily';
 const BUILTIN_PROVIDER_ID = 'deepseek-official';
 /** Backends the `provider` field accepts; each value is a seam provider id. */
 const PROVIDER_VALUES = [TAVILY_PROVIDER_ID, BUILTIN_PROVIDER_ID];
+/** Loader row id of the shipped DeepSeek search provider this bundle switches off. */
+const BUILTIN_ROW_ID = 'web-search-deepseek';
 /** Credential reference resolved per search. */
 const DEFAULT_API_KEY_ENV = 'TAVILY_API_KEY';
 /** Tavily's public API base; `/search` is appended. */
@@ -335,6 +337,74 @@ function describeRefusal(payload) {
 	return '';
 }
 
+/** The loader service, or `undefined` when this composition has none. */
+function loaderOf(ctx) {
+	try {
+		return ctx.get?.('loader');
+	} catch {
+		return undefined;
+	}
+}
+
+/** The shipped row's entry in a loader's entry list, or `undefined`. */
+function findBuiltinRow(loader) {
+	try {
+		for (const entry of loader.entries()) if (entry.id === BUILTIN_ROW_ID) return entry;
+	} catch {
+		// A loader that cannot list entries is treated as having no such row.
+	}
+	return undefined;
+}
+
+/**
+ * Whether the shipped row is currently loaded. Read live on every `available()`
+ * call rather than cached, because the row is toggled at runtime and the seam's
+ * "exactly one usable provider" rule depends on this answer tracking the loader
+ * rather than the setting.
+ *
+ * @param ctx - plugin context whose optional loader service owns the row.
+ * @returns `true` only when the row is present and enabled.
+ */
+function builtinRowEnabled(ctx) {
+	const loader = loaderOf(ctx);
+	if (loader === undefined) return false;
+	const entry = findBuiltinRow(loader);
+	return entry !== undefined && !entry.disabled;
+}
+
+/**
+ * Put the shipped row into the state the selected backend needs: enabled only
+ * while the shipped provider is the selection.
+ *
+ * A missing loader or a missing row is reported and skipped rather than thrown,
+ * so a profile without the shipped provider still runs this one. A toggle that
+ * fails is loud in the log for the same reason — it is the one thing that can
+ * leave the seam with no usable provider.
+ *
+ * @param ctx - plugin context whose optional loader service owns the row.
+ * @param provider - the selected backend id.
+ * @returns a promise that never rejects.
+ */
+async function syncBuiltinRow(ctx, provider) {
+	const loader = loaderOf(ctx);
+	if (loader === undefined) {
+		ctx.logger?.warn?.(`Tavily search: no loader service, so the "${BUILTIN_ROW_ID}" row was left as composed.`);
+		return;
+	}
+	const entry = findBuiltinRow(loader);
+	if (entry === undefined) {
+		ctx.logger?.warn?.(`Tavily search: loader row "${BUILTIN_ROW_ID}" is not composed, so backend switching cannot work.`);
+		return;
+	}
+	const disabled = provider !== BUILTIN_PROVIDER_ID;
+	if (entry.disabled === disabled) return;
+	try {
+		await loader.update(BUILTIN_ROW_ID, { disabled });
+	} catch (error) {
+		ctx.logger?.warn?.(`Tavily search: could not ${disabled ? 'disable' : 'enable'} the "${BUILTIN_ROW_ID}" row: ${String(error)}`);
+	}
+}
+
 /** The Tavily-backed search provider. */
 class TavilySearchProvider {
 	resolveOptions;
@@ -353,6 +423,8 @@ class TavilySearchProvider {
 
 	available() {
 		const options = this.resolveOptions();
+		if (options.provider !== TAVILY_PROVIDER_ID) return false;
+		if (builtinRowEnabled(options.ctx)) return false;
 		return (options.apiKey !== undefined || options.resolveApiKey !== undefined) && URL.canParse(options.baseURL);
 	}
 
@@ -517,10 +589,15 @@ function apply(ctx, config) {
 			setSource: (source) => {
 				current = source;
 			},
-			onChange: () => {}
+			// Also fires at attach, so boot applies the persisted choice.
+			onChange: () => {
+				void syncBuiltinRow(ctx, current().provider ?? TAVILY_PROVIDER_ID);
+			}
 		});
 	});
 	ctx.web.registerSearchProvider(new TavilySearchProvider(() => resolveOptions(ctx, current())));
+	// Covers a composition with no settings service, where `onChange` never fires.
+	void syncBuiltinRow(ctx, current().provider ?? TAVILY_PROVIDER_ID);
 }
 
 export { Config, SETTINGS_NAMESPACE, TAVILY_PROVIDER_ID, TavilySearchProvider, apply, inject, name };

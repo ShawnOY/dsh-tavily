@@ -48,7 +48,7 @@ globalThis.fetch = async (url, init) => {
 let sections = [];
 
 /** Build a provider wired to a stub context. */
-function provider({ key, config = {}, locale } = {}) {
+function provider({ key, config = {}, locale, loader = stubLoader() } = {}) {
 	const registered = [];
 	sections = [];
 	const ctx = {
@@ -58,6 +58,7 @@ function provider({ key, config = {}, locale } = {}) {
 			// The Host reads the harness locale preference from the settings
 			// document; absent service or namespace means "no preference".
 			if (name === 'settings') return { get: (ns) => (ns === 'locale' && locale !== undefined ? { preference: locale } : undefined) };
+			if (name === 'loader' && loader !== null) return loader;
 			return undefined;
 		},
 		logger: { warn: (message) => logs.push(String(message)) },
@@ -75,6 +76,27 @@ const reset = () => {
 	queue = [];
 	logs = [];
 };
+
+/** Let a fire-and-forget row sync settle before asserting on it. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+/**
+ * A stub loader holding the shipped row, whose `disabled` flag the plugin flips.
+ * `failUpdate` models a row the plugin can see but cannot toggle.
+ */
+function stubLoader({ rows = [{ id: 'web-search-deepseek', disabled: true }], failUpdate = false } = {}) {
+	const state = rows.map((row) => ({ ...row }));
+	return {
+		state,
+		entries: () => state,
+		update: async (id, options) => {
+			if (failUpdate) throw new Error('loader refused the update');
+			const row = state.find((candidate) => candidate.id === id);
+			if (row === undefined) throw new Error(`no row ${id}`);
+			Object.assign(row, options);
+		}
+	};
+}
 
 // Keep the stub runs deterministic even when the developer exports the key.
 const envKey = process.env.TAVILY_API_KEY;
@@ -295,10 +317,42 @@ check('an unknown language is rejected', (() => {
 	}
 })());
 
+console.log('13. provider selection');
+reset();
+const offLoader = stubLoader({ rows: [{ id: 'web-search-deepseek', disabled: false }] });
+const offProvider = provider({ key: 'tvly-k', loader: offLoader });
+await settle();
+check('selecting Tavily disables the shipped row', offLoader.state[0].disabled === true, `(got ${offLoader.state[0].disabled})`);
+check('and Tavily stays available', offProvider.available() === true);
+
+reset();
+const onLoader = stubLoader();
+const onProvider = provider({ key: 'tvly-k', config: { provider: 'deepseek-official' }, loader: onLoader });
+await settle();
+check('selecting the shipped provider enables its row', onLoader.state[0].disabled === false, `(got ${onLoader.state[0].disabled})`);
+check('and Tavily reports itself unavailable', onProvider.available() === false);
+
+reset();
+const stuck = provider({ key: 'tvly-k', loader: stubLoader({ rows: [{ id: 'web-search-deepseek', disabled: false }], failUpdate: true }) });
+await settle();
+check('a row that cannot be disabled keeps Tavily unavailable', stuck.available() === false);
+check('and the failure is logged', logs.some((line) => line.includes('could not')), `(logs=${JSON.stringify(logs)})`);
+
+reset();
+const orphan = provider({ key: 'tvly-k', config: { provider: 'deepseek-official' }, loader: stubLoader({ rows: [] }) });
+await settle();
+check('a missing shipped row leaves the shipped selection with nothing usable', orphan.available() === false);
+check('and the missing row is logged', logs.some((line) => line.includes('web-search-deepseek')), `(logs=${JSON.stringify(logs)})`);
+
+reset();
+provider({ key: 'tvly-k', loader: null });
+await settle();
+check('a composition with no loader is reported', logs.some((line) => line.includes('no loader')), `(logs=${JSON.stringify(logs)})`);
+
 if (process.env.TAVILY_LIVE_TEST !== '1') {
-	console.log('\n13. live Tavily calls — skipped (set TAVILY_LIVE_TEST=1 to enable)');
+	console.log('\n15. live Tavily calls — skipped (set TAVILY_LIVE_TEST=1 to enable)');
 } else {
-	console.log('13. live Tavily calls');
+	console.log('15. live Tavily calls');
 	globalThis.fetch = realFetch;
 	const live = [['keyless (no credentials at all)', {}]];
 	if (envKey !== undefined) live.push(['keyless-first with a key present', { key: envKey }]);
